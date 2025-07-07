@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %} Monopoly - Admin {% endblock %}
+
+{% block files %}
+<link rel="stylesheet" href="{% static 'css/join.css' %}">
+<script src="{% static 'js/views/admin.js' %}" type="text/javascript"></script>
+<style>
+    .header-container {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 1000;
+    }
+    #logout-button {
+        background-color: #f44336;
+        color: white;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    #logout-button:hover {
+        background-color: #d32f2f;
+    }
+    .user-display {
+        margin-right: 10px;
+        color: white;
+        font-weight: bold;
+    }
+    .admin-title {
+        font-size: 24px;
+        color: gold;
+        margin-bottom: 20px;
+    }
+    .team-container {
+        display: flex;
+        justify-content: space-around;
+        width: 100%;
+        margin-bottom: 20px;
+    }
+    .team {
+        width: 45%;
+        background-color: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        padding: 10px;
+    }
+    .team-1 {
+        border: 2px solid #4285F4;
+    }
+    .team-2 {
+        border: 2px solid #EA4335;
+    }
+    .team-header {
+        font-size: 18px;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+    .team-1 .team-header {
+        color: #4285F4;
+    }
+    .team-2 .team-header {
+        color: #EA4335;
+    }
+    .player-list {
+        max-height: 150px;
+        overflow-y: auto;
+    }
+    .player-item {
+        background-color: rgba(255, 255, 255, 0.7);
+        margin: 5px 0;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 14px;
+    }
+    #start-game-btn {
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        border-radius: 5px;
+        margin-top: 20px;
+        transition: background-color 0.3s;
+        width: 100%;
+    }
+    #start-game-btn:hover {
+        background-color: #45a049;
+    }
+    .link-container {
+        margin-top: 20px;
+        text-align: center;
+    }
+    .game-link {
+        width: 80%;
+        padding: 8px;
+        font-size: 14px;
+        margin-right: 10px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+    }
+    .copy-btn {
+        padding: 8px 15px;
+        background-color: #2196F3;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .copy-btn:hover {
+        background-color: #0b7dda;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header-container">
+    <span class="user-display">Admin</span>
+    <a href="/monopoly/logout"><button id="logout-button">Logout</button></a>
+</div>
+
+<div id="join-card-container" class="card">
+    <div class="card-blur-container">
+        <div class="card-blur"></div>
+    </div>
+    <div class="card-content-container">
+        <span class="admin-title">Game Control Panel</span>
+        
+        <div class="team-container">
+            <div class="team team-1">
+                <div class="team-header">Team 1</div>
+                <div class="player-list" id="team-1-players">
+                    <!-- Players will be added here dynamically -->
+                </div>
+            </div>
+            <div class="team team-2">
+                <div class="team-header">Team 2</div>
+                <div class="player-list" id="team-2-players">
+                    <!-- Players will be added here dynamically -->
+                </div>
+            </div>
+        </div>
+        
+        <button id="start-game-btn">Start Game</button>
+        
+        <div class="link-container">
+            <input type="text" class="game-link" value="{{ game_link }}" readonly>
+            <button class="copy-btn" onclick="copyGameLink()">Copy</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function copyGameLink() {
+        const gameLink = document.querySelector('.game-link');
+        gameLink.select();
+        document.execCommand('copy');
+        alert('Link copied to clipboard!');
+    }
+      // WebSocket connection to receive player updates
+    document.addEventListener("DOMContentLoaded", function() {
+        const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+        const socket = new WebSocket(
+            wsScheme + "://" + window.location.host + "/join/admin"
+        );
+        
+        socket.onopen = function(event) {
+            console.log("Admin WebSocket connected");
+        };
+        
+        socket.onmessage = function(event) {
+            console.log("WebSocket message received:", event.data);
+            const data = JSON.parse(event.data);
+            
+            if (data.action === "join") {
+                updatePlayerLists(data.data);
+            }
+        };
+        
+        socket.onclose = function(event) {
+            console.log("WebSocket connection closed");
+            // Reconnect after a delay
+            setTimeout(function() {
+                location.reload();
+            }, 2000);
+        };
+        
+        socket.onerror = function(error) {
+            console.log("WebSocket error:", error);
+        };
+        
+        function updatePlayerLists(players) {
+            const team1List = document.getElementById("team-1-players");
+            const team2List = document.getElementById("team-2-players");
+            
+            // Clear existing lists
+            team1List.innerHTML = "";
+            team2List.innerHTML = "";
+            
+            // Add players to their respective teams
+            players.forEach(player => {
+                if (player.name !== "admin") {
+                    const playerElement = document.createElement("div");
+                    playerElement.className = "player-item";
+                    playerElement.textContent = player.name;
+                    
+                    if (player.team === 1) {
+                        team1List.appendChild(playerElement);
+                    } else {
+                        team2List.appendChild(playerElement);
+                    }
+                }
+            });
+        }        // Add event listener for Start Game button
+        document.getElementById("start-game-btn").addEventListener("click", function() {
+            console.log("Start game button clicked");
+            console.log("WebSocket ready state:", socket.readyState);
+            
+            this.disabled = true;
+            this.innerText = "Starting...";
+            
+            if (socket.readyState === WebSocket.OPEN) {
+                console.log("Sending start message");
+                socket.send(JSON.stringify({
+                    action: "start"
+                }));
+                
+                // Wait a moment then redirect to game page
+                setTimeout(() => {
+                    window.location.href = "/monopoly/game/admin";
+                }, 1000);
+            } else {
+                console.log("WebSocket not connected");
+                this.disabled = false;
+                this.innerText = "Start Game";
+                alert("Connection error. Please refresh the page.");
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,55 @@
+/* Temporary debug CSS to force dice and modal visibility */
+#modal-card {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 9999 !important;
+}
+
+#dice-container {
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    height: 200px !important;
+    background-color: rgba(0, 255, 0, 0.2) !important;
+    border: 3px solid lime !important;
+    z-index: 10000 !important;
+}
+
+#platform {
+    display: block !important;
+    visibility: visible !important;
+    background-color: rgba(255, 0, 0, 0.2) !important;
+    border: 2px solid red !important;
+}
+
+.dice {
+    display: block !important;
+    visibility: visible !important;
+    background-color: rgba(0, 0, 255, 0.2) !important;
+    border: 1px solid blue !important;
+}
+
+/* Override any hidden classes */
+.hidden {
+    display: block !important;
+}
+
+/* Force modal content to be visible */
+.card-content-container {
+    display: block !important;
+    visibility: visible !important;
+}
+
+#modal-message-container {
+    display: block !important;
+    visibility: visible !important;
+    min-height: 50px !important;
+    background-color: rgba(255, 255, 0, 0.1) !important;
+}
+
+#modal-buttons-container {
+    display: block !important;
+    visibility: visible !important;
+    min-height: 50px !important;
+}
