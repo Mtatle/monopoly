@@ -12,7 +12,7 @@ class Session:
 
     def register(self, conf):
         error_message = "Error: "
-        for (key, value) in conf.items():
+        for (key, value) in list(conf.items()):
             if key == "request": continue
             if not value or len(value) == 0:
                 error_message += key + " can't be empty."

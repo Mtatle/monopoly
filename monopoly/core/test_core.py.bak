@@ -5,14 +5,14 @@ from land import *
 
 
 def testing(x):
-    print "new test, step num is: ", x
+    print("new test, step num is: ", x)
     game = Game(4)
     steps, move_result = game.roll(x)
     if move_result.move_result_type == MoveResultType.CONSTRUCTION_OPTION \
             or move_result.move_result_type == MoveResultType.BUY_LAND_OPTION:
         move_result.set_decision(True)
-    print "steps: ", steps
-    print move_result
+    print("steps: ", steps)
+    print(move_result)
     game.make_decision(move_result)
 
 

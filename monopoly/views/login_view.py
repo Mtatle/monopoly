@@ -1,33 +1,46 @@
 from django.shortcuts import render, redirect
 from django.views import View
-from django.contrib.auth import login, authenticate
+from django.contrib.auth import login
+from django.contrib.auth.models import User
+
 
 class LoginView(View):
-    initial = {'active_page': 'register'}
+    """Simple username-only login.
+
+    If the given username does not exist a new user will be created on-the-fly.
+    The special username ``admin`` will be considered the host of the game and
+    will be redirected to the join room where the host can start the game. All
+    other users are redirected to the team-selection screen.
+    """
+
     template_name = 'login_view.html'
 
     def get(self, request, *args, **kwargs):
         return render(request, self.template_name, {
             "active_page": "login",
-            "error": None
+            "error": None,
         })
 
     def post(self, request, *args, **kwargs):
-        username = request.POST['username']
-        password = request.POST['password']
-        user = authenticate(username=username, password=password)
+        username = request.POST.get('username', '').strip()
 
-        if user is not None:
-            if user.is_active:
-                login(request, user)
-                return redirect("/monopoly/join")
+        if not username:
+            return render(request, self.template_name, {
+                "active_page": "login",
+                "error": "Username is required."
+            })
 
-            else:
-                res = {'active_page': 'login',
-                       "error": "Inactive user."}
-                return render(request, self.template_name, res)
+        # Retrieve or create the user. We do **not** use a password – authentication
+        # is purely based on the provided username for the purpose of this project.
+        user, _ = User.objects.get_or_create(username=username)
+
+        # Django needs a backend set on the user instance when logging in
+        user.backend = 'django.contrib.auth.backends.ModelBackend'
+        login(request, user)
+
+        # Host vs player routing
+        if username.lower() == 'admin':
+            return redirect('/monopoly/admin')
         else:
-            res = {'active_page': 'login',
-                   "error": "Invalid username or password."}
-            return render(request, self.template_name, res)
+            return redirect('/monopoly/team_select')
 

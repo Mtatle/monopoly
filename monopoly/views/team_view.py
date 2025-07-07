@@ -43,11 +43,22 @@ class AdminPanelView(View):
     def get(self, request, *args, **kwargs):
         # Only allow admin to access this page
         if request.user.username != "admin":
-            return redirect("/monopoly/join")
+            return redirect("/monopoly/team_select")
             
-        # Generate the game link for sharing
-        game_link = request.build_absolute_uri('/monopoly/join')
+        # Get current player teams for display
+        from monopoly.consumers import player_teams
+        
+        team1_players = []
+        team2_players = []
+        
+        for player, team in player_teams.items():
+            if player != "admin":
+                if team == 1:
+                    team1_players.append(player)
+                else:
+                    team2_players.append(player)
             
         return render(request, self.template_name, {
-            "game_link": game_link
+            "team1_players": team1_players,
+            "team2_players": team2_players,
         })
