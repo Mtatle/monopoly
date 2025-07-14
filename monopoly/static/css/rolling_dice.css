@@ -85,8 +85,8 @@
 }
 
 #roll:checked ~ #platform {
-    width: 200px;
-    height: 100px;
+    width: 100px;
+    height: 50px;
     transform-style: preserve-3d;
     animation: roll 1.6s infinite linear;
 }
@@ -96,40 +96,40 @@
     flex-direction: column;
     width: 100%;
     height: 100%;
-    perspective: 600px;
+    perspective: 300px;
 }
 
 #platform {
-    height: 100px;
+    height: 50px;
     align-self: center;
-    width: 200px;
-    padding: 20px 0;
-    margin-right: 10px;
+    width: 100px;
+    padding: 10px 0;
+    margin-right: 5px;
 }
 
 .dice span {
     position: absolute;
-    margin: 50px 0 0 50px;
+    margin: 25px 0 0 25px;
     display: block;
-    font-size: 2.5em;
-    padding: 5px;
+    font-size: 1.25em;
+    padding: 2px;
 }
 
 .dice {
     position: absolute;
-    width: 100px;
-    height: 100px;
+    width: 50px;
+    height: 50px;
     transform-style: preserve-3d;
     animation: spin 50s infinite linear;
 }
 
 .side {
     position: absolute;
-    width: 100px;
-    height: 100px;
+    width: 50px;
+    height: 50px;
     background: #fff;
-    box-shadow: inset 0 0 20px #ccc;
-    border-radius: 20px;
+    box-shadow: inset 0 0 10px #ccc;
+    border-radius: 10px;
 }
 
 .dice .cover, .dice .inner {
@@ -151,88 +151,88 @@
 }
 
 .dice .front {
-    transform: translateZ(50px);
+    transform: translateZ(25px);
 }
 
 .dice .front.inner {
-    transform: translateZ(49px);
+    transform: translateZ(24px);
 }
 
 .dice .back {
-    transform: rotateX(-180deg) translateZ(50px);
+    transform: rotateX(-180deg) translateZ(25px);
 }
 
 .dice .back.inner {
-    transform: rotateX(-180deg) translateZ(49px);
+    transform: rotateX(-180deg) translateZ(24px);
 }
 
 .dice .right {
-    transform: rotateY(90deg) translateZ(50px);
+    transform: rotateY(90deg) translateZ(25px);
 }
 
 .dice .right.inner {
-    transform: rotateY(90deg) translateZ(49px);
+    transform: rotateY(90deg) translateZ(24px);
 }
 
 .dice .left {
-    transform: rotateY(-90deg) translateZ(50px);
+    transform: rotateY(-90deg) translateZ(25px);
 }
 
 .dice .left.inner {
-    transform: rotateY(-90deg) translateZ(49px);
+    transform: rotateY(-90deg) translateZ(24px);
 }
 
 .dice .top {
-    transform: rotateX(90deg) translateZ(50px);
+    transform: rotateX(90deg) translateZ(25px);
 }
 
 .dice .top.inner {
-    transform: rotateX(90deg) translateZ(49px);
+    transform: rotateX(90deg) translateZ(24px);
 }
 
 .dice .bottom {
-    transform: rotateX(-90deg) translateZ(50px);
+    transform: rotateX(-90deg) translateZ(25px);
 }
 
 .dice .bottom.inner {
-    transform: rotateX(-90deg) translateZ(49px);
+    transform: rotateX(-90deg) translateZ(24px);
 }
 
 .dot {
     position: absolute;
-    width: 23px;
-    height: 23px;
-    border-radius: 12px;
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
     background: #444;
-    box-shadow: inset 2px 0 5px #000;
+    box-shadow: inset 1px 0 3px #000;
 }
 
 .dot.center {
-    margin: 38px 0 0 38px;
+    margin: 19px 0 0 19px;
 }
 
 .dot.dtop {
-    margin-top: 10px;
+    margin-top: 5px;
 }
 
 .dot.dleft {
-    margin-left: 62px;
+    margin-left: 31px;
 }
 
 .dot.dright {
-    margin-left: 10px;
+    margin-left: 5px;
 }
 
 .dot.dbottom {
-    margin-top: 62px;
+    margin-top: 31px;
 }
 
 .dot.center.dleft {
-    margin: 38px 0 0 10px;
+    margin: 19px 0 0 5px;
 }
 
 .dot.center.dright {
-    margin: 38px 0 0 67px;
+    margin: 19px 0 0 33px;
 }
 
 label, input[type=checkbox]:before {

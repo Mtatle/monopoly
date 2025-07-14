@@ -34,7 +34,18 @@ class GameController {
         }
     }
 
+    removeProperty(type, tileId) {
+        if (type === PropertyManager.PROPERTY_OWNER_MARK) {
+            this.boardController.removeLandMark(tileId);
+        }
+        // Note: Houses/hotels are removed via PropertyManager.clearAll() during board reset
+    }
+
     resizeBoard() {
         this.boardController.resize();
+    }
+
+    clearAllProperties() {
+        this.boardController.clearAllProperties();
     }
 }

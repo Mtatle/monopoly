@@ -31,6 +31,11 @@ class Game(object):
         self._handlers = []
         self.add_game_change_listner(InternalLogHandler(self))
         self.notify_new_game()
+        
+        # === Ensure Surprise Cards are unique per game ===
+        import random
+        self._unused_surprise_cards = list(range(40))  # 40 surprise cards (0-39)
+        random.shuffle(self._unused_surprise_cards)
 
     def get_game_id(self):
         return self._game_id
@@ -125,9 +130,13 @@ class Game(object):
             return MoveResult(result_type, val, land)
         elif land_type == LandType.JAIL:
             print("debug85")
-            result_type = MoveResultType.STOP_ROUND
-            val = 1
-            return MoveResult(result_type, val, land)
+            # If player lands on jail directly by dice, they're just visiting (no penalty)
+            # The penalty is only applied when sent here from "Go to QA Jail"
+            result_type = MoveResultType.NOTHING
+            val = 0
+            ret = MoveResult(result_type, val, land)
+            ret.set_msg(" is visiting QA Jail - no penalty or reward.")
+            return ret
         elif land_type == LandType.CHANCE:
             print("debug landtype chance")
             card = self._card_deck.draw()
@@ -140,6 +149,140 @@ class Game(object):
             ret = MoveResult(result_type, val, land)
             ret.set_msg(" Chance Card: " + str(card))
             return ret
+        
+        elif land_type == LandType.QUESTION:
+            print("debug landtype question")
+            question_land = land.get_content()
+            if question_land.get_owner_index() is None:
+                # Question available to answer - show question card
+                result_type = MoveResultType.REWARD
+                val = 0  # No money reward, just points
+                ret = MoveResult(result_type, val, land)
+                
+                # Generate random question index for synchronization across all clients
+                import random
+                position = land.get_position()
+                # Most question tiles have 20 questions, except tile 20 which has 1
+                if position == 20:
+                    question_index = 0  # Only one question for Training Time
+                else:
+                    question_index = random.randint(0, 19)  # 0-19 for 20 questions
+                
+                ret.set_msg(" SHOW_QUESTION_CARD:" + str(position) + ":" + str(question_index))
+                # Set ownership and give points (will be handled after question is answered)
+                question_land.set_owner(self._current_player_index)
+                self.get_current_player().add_points(5)
+                return ret
+            else:
+                # Already owned
+                result_type = MoveResultType.NOTHING
+                val = 0
+                return MoveResult(result_type, val, land)
+        
+        elif land_type == LandType.SURPRISE:
+            print("debug landtype surprise")
+            # Ensure each surprise card is used only once per game
+            import random
+            if len(self._unused_surprise_cards) == 0:
+                # All cards exhausted – reshuffle the full deck
+                self._unused_surprise_cards = list(range(40))
+                random.shuffle(self._unused_surprise_cards)
+                print("Surprise card deck exhausted – reshuffled for new cycle")
+            surprise_index = self._unused_surprise_cards.pop()
+            
+            # All surprise cards show the same card to all clients
+            result_type = MoveResultType.NOTHING
+            val = 0
+            ret = MoveResult(result_type, val, land)
+            ret.set_msg(f" SHOW_SURPRISE_CARD:{surprise_index}")
+            
+            print(f"Selected surprise card index (unique): {surprise_index}")
+            return ret
+        
+        elif land_type == LandType.RESPONSE_STATION:
+            print("debug landtype response_station")
+            response_station = land.get_content()
+            if response_station.get_owner_index() is None:
+                # Calculate price based on current player's owned stations
+                current_player = self.get_current_player()
+                owned_stations = sum(1 for prop in current_player.get_properties() 
+                                   if hasattr(prop, 'get_type') and prop.get_type() == LandType.RESPONSE_STATION)
+                
+                # Price: 5 SB for first station, 10 SB for second, 15 SB for third
+                if owned_stations == 0:
+                    price = 5
+                elif owned_stations == 1:
+                    price = 10
+                elif owned_stations == 2:
+                    price = 15
+                else:
+                    # Can't buy more than 3 stations (there are exactly 3 on board)
+                    price = 15  # Default price for display (shouldn't reach here)
+                
+                if current_player.get_money() < price:
+                    result_type = MoveResultType.NOTHING
+                    val = price
+                    return MoveResult(result_type, val, land)
+                result_type = MoveResultType.BUY_LAND_OPTION
+                val = price
+                return MoveResult(result_type, val, land)
+            elif response_station.get_owner_index() == self._current_player_index:
+                # Own this station
+                result_type = MoveResultType.NOTHING
+                val = 0
+                return MoveResult(result_type, val, land)
+            else:
+                # Pay rent based on how many stations owned
+                owner = self.get_player(response_station.get_owner_index())
+                owned_stations = sum(1 for prop in owner.get_properties() 
+                                   if hasattr(prop, 'get_type') and prop.get_type() == LandType.RESPONSE_STATION)
+                result_type = MoveResultType.PAYMENT
+                val = response_station.get_rent(owned_stations)
+                return MoveResult(result_type, val, land)
+        
+        elif land_type == LandType.GOLDEN_CHEST:
+            print("debug landtype golden_chest")
+            result_type = MoveResultType.REWARD
+            val = land.get_content().get_reward()  # 15 SB
+            ret = MoveResult(result_type, val, land)
+            ret.set_msg(" Found Golden Chest! Earned 15 SB.")
+            return ret
+        
+        elif land_type == LandType.BEST_AGENT:
+            print("debug landtype best_agent")
+            result_type = MoveResultType.REWARD
+            val = 0  # No money reward, just points
+            ret = MoveResult(result_type, val, land)
+            ret.set_msg(" Best Agent! Gained 10 points.")
+            self.get_current_player().add_points(10)
+            return ret
+        
+        elif land_type == LandType.CONNECTIVITY_COST:
+            print("debug landtype connectivity_cost")
+            result_type = MoveResultType.PAYMENT
+            val = land.get_content().get_cost()  # 10 SB
+            ret = MoveResult(result_type, val, land)
+            ret.set_msg(" Connectivity Cost! Pay 10 SB.")
+            return ret
+        
+        elif land_type == LandType.GO_TO_JAIL:
+            print("debug landtype go_to_jail")
+            result_type = MoveResultType.STOP_ROUND
+            val = 1
+            ret = MoveResult(result_type, val, land)
+            ret.set_msg(" Go to QA Jail!")
+            # Set a special flag to move to jail AFTER the visual animation shows landing on this tile
+            ret.go_to_jail = True
+            return ret
+        
+        elif land_type == LandType.TRAINING_TIME:
+            print("debug landtype training_time")
+            result_type = MoveResultType.NOTHING
+            val = 0
+            ret = MoveResult(result_type, val, land)
+            ret.set_msg(" Training Time - take a break.")
+            return ret
+        
         else:
             print("Error, the land is", land_type)
             self.notify_error("Internal error, unknow land type")
@@ -160,14 +303,15 @@ class Game(object):
             print('debug99')
             purchasable_land = move_result.get_land().get_content()
             if move_result.yes is True:
-                if self._has_enough_money(purchasable_land) is False:
+                # Use the price from the move result (for response stations, this is dynamic)
+                price = val
+                if self.get_current_player().get_money() < price:
                     # return handled
                     self.notify_error("No enough money to buy the property.")
                     result = False
                 purchasable_land.set_owner(self._current_player_index)
                 self.get_current_player().add_properties(purchasable_land)
-                self.get_current_player().deduct_money(
-                    purchasable_land.get_price())
+                self.get_current_player().deduct_money(price)
             else:
                 result = True
 
@@ -197,7 +341,8 @@ class Game(object):
                     self._game_state = GameStateType.GAME_ENDED
                 land = move_result.get_land().get_content()
                 if land.get_type() == LandType.CONSTRUCTION_LAND or \
-                        land.get_type() == LandType.INFRA:
+                        land.get_type() == LandType.INFRA or \
+                        land.get_type() == LandType.RESPONSE_STATION:
                     # this is the payment to the player
                     # assert land.get_owner_index() is not None
                     if land.get_owner_index() is None:
@@ -214,6 +359,10 @@ class Game(object):
 
             elif move_result_type == MoveResultType.STOP_ROUND:
                 self.get_current_player().add_one_stop()
+                # If this is a "Go to QA Jail" result, move the player to jail position 6
+                if hasattr(move_result, 'go_to_jail') and move_result.go_to_jail:
+                    print(f"Moving player {self._current_player_index} to jail (position 6)")
+                    self.get_current_player().set_position(6)
             else:
                 # move result option
                 # should never reach here
@@ -325,6 +474,20 @@ class Game(object):
 
     def get_players(self):
         return self._players
+
+    def set_current_player_index(self, index):
+        """Set the current player index"""
+        if 0 <= index < len(self._players):
+            self._current_player_index = index
+    
+    def admin_set_current_player_index(self, intended_index):
+        """Set the current player index for admin use - directly sets who should roll next"""
+        if 0 <= intended_index < len(self._players):
+            # Directly set the current player - they will be the one to roll
+            self._current_player_index = intended_index
+            print(f"Admin set turn: current player is now {intended_index}")
+            return intended_index
+        return None
 
     def get_game_status(self):
         return self._game_state

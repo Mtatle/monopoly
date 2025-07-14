@@ -8,7 +8,7 @@ class AdminView {
     initWebSocket() {
         const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
         this.socket = new WebSocket(
-            wsScheme + "://" + window.location.host + "/monopoly/join/admin"
+            wsScheme + "://" + window.location.host + "/supportopoly/join/admin"
         );
         
         this.socket.onmessage = (event) => {

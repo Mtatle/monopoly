@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %} Supportopoly - Spectator {% endblock %}
+
+{% block files %}
+<link rel="stylesheet" href="{% static 'css/join.css' %}">
+<script src="{% static 'js/views/spectator.js' %}" type="text/javascript"></script>
+{% endblock %}
+
+{% block content %}
+<div id="spectator-card-container" class="card">
+    <input id="user-name" value="{{ user.name }}" hidden>
+    <div class="card-blur-container">
+        <div class="card-blur"></div>
+    </div>
+    <div class="card-content-container">
+        <a href="/monopoly/profile/{{ user.name }}" target="_blank">
+            <img id="user-avatar" src="{{ user.avatar }}">
+        </a>
+        <h2 style="color: #fff; margin: 20px 0;">👀 Spectator Mode</h2>
+        <span id="spectator-notice">You are watching as: <strong>{{ user.name }}</strong></span>
+        <div id="waiting-container">
+            <p style="color: #ccc; text-align: center; margin: 30px 0;">
+                Waiting for the game to start...<br>
+                <small>You'll be able to watch the game once the admin starts it.</small>
+            </p>
+            <div id="loading-dots" style="text-align: center; font-size: 24px; color: #fff;">
+                ⚫⚫⚫
+            </div>
+        </div>
+        <button id="watch-game" class="large-button" disabled style="margin-top: 30px;">
+            🎮 Watch Game
+        </button>
+        <a href="/monopoly/profile/{{ user.name }}" target="_blank">
+            <button id="edit-profile" class="large-button" style="margin-top: 10px; background: #666;">
+                Edit Profile
+            </button>
+        </a>
+    </div>
+</div>
+{% endblock %} 

@@ -1,73 +1,132 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %} Monopoly - Select Team {% endblock %}
+{% block title %} Supportopoly - Select Team {% endblock %}
 
 {% block files %}
 <link rel="stylesheet" href="{% static 'css/join.css' %}">
 <style>
     .header-container {
         position: absolute;
-        top: 10px;
-        right: 10px;
+        top: 15px;
+        right: 15px;
         z-index: 1000;
+        display: flex;
+        align-items: center;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 10px 15px;
+        border-radius: 25px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
     #logout-button {
-        background-color: #f44336;
+        background: linear-gradient(135deg, #f44336, #d32f2f);
         color: white;
         padding: 8px 16px;
         border: none;
-        border-radius: 4px;
+        border-radius: 20px;
         cursor: pointer;
+        font-weight: bold;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
     }
     #logout-button:hover {
-        background-color: #d32f2f;
+        background: linear-gradient(135deg, #d32f2f, #b71c1c);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
     }
     .user-display {
-        margin-right: 10px;
+        margin-right: 15px;
         color: white;
         font-weight: bold;
+        font-size: 16px;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     }
     .team-selection {
         display: flex;
-        justify-content: space-around;
+        justify-content: center;
+        align-items: center;
         margin-top: 20px;
         width: 100%;
+        gap: 30px;
+        padding: 0;
     }
     .team-card {
-        background-color: rgba(255, 255, 255, 0.8);
-        border-radius: 10px;
-        padding: 20px;
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(248, 249, 250, 0.9));
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 30px 20px;
         text-align: center;
         width: 40%;
         cursor: pointer;
-        transition: transform 0.3s ease;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        position: relative;
+        overflow: hidden;
+    }
+    .team-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+        transition: left 0.5s;
+    }
+    .team-card:hover::before {
+        left: 100%;
     }
     .team-card:hover {
-        transform: scale(1.05);
+        transform: translateY(-10px) scale(1.05);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
     }
     .team-1 {
         border: 3px solid #4285F4;
+        background: linear-gradient(145deg, rgba(66, 133, 244, 0.1), rgba(255, 255, 255, 0.9));
     }
     .team-2 {
         border: 3px solid #EA4335;
+        background: linear-gradient(145deg, rgba(234, 67, 53, 0.1), rgba(255, 255, 255, 0.9));
     }
     .team-name {
-        font-size: 24px;
+        font-size: 28px;
         font-weight: bold;
         margin-bottom: 15px;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        position: relative;
+        z-index: 1;
     }
     .team-1 .team-name {
         color: #4285F4;
+        background: linear-gradient(45deg, #4285F4, #1a73e8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
     .team-2 .team-name {
         color: #EA4335;
+        background: linear-gradient(45deg, #EA4335, #d93025);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    .team-card p {
+        font-size: 16px;
+        color: #555;
+        font-weight: 500;
+        position: relative;
+        z-index: 1;
     }
     .waiting-message {
         margin-top: 30px;
         text-align: center;
         font-size: 18px;
         color: white;
+    }
+    
+    #join-card-container .card-content-container {
+        padding: 40px 30px 60px 30px;
     }
     .status-indicator {
         display: flex;
@@ -95,57 +154,93 @@
     }
 </style>
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const team1Card = document.getElementById("team-1");
-        const team2Card = document.getElementById("team-2");
+    // Global functions
+    function joinTeam(teamNumber) {
+        console.log('Team selected:', teamNumber);
         
-        team1Card.addEventListener("click", function() {
-            joinTeam(1);
-        });
-        
-        team2Card.addEventListener("click", function() {
-            joinTeam(2);
-        });
-          function joinTeam(teamNumber) {
-            // Hide team selection
-            document.querySelector(".team-selection").style.display = "none";
+        try {
+            // Find the container first
+            const container = document.querySelector(".card-content-container");
+            console.log('Container found:', container);
             
-            // Show waiting message
+            if (!container) {
+                console.error('Container not found!');
+                return;
+            }
+            
+            // Hide team selection
+            const teamSelection = document.querySelector(".team-selection");
+            console.log('Team selection found:', teamSelection);
+            if (teamSelection) {
+                teamSelection.style.display = "none";
+                console.log('Team selection hidden');
+            }
+            
+            // Hide the "Select Your Team" title
+            const notice = document.getElementById("new-game-notice");
+            console.log('Notice found:', notice);
+            if (notice) {
+                notice.style.display = "none";
+                console.log('Notice hidden');
+            }
+            
+            // Create waiting message
             const waitingMessage = document.createElement("div");
             waitingMessage.className = "waiting-message";
+            waitingMessage.style.cssText = `
+                margin-top: 30px;
+                text-align: center;
+                font-size: 18px;
+                color: #333;
+                background: rgba(255, 255, 255, 0.9);
+                padding: 30px 20px;
+                border-radius: 15px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+                backdrop-filter: blur(10px);
+            `;
+            
             waitingMessage.innerHTML = `
-                <p><strong>You've joined Team ${teamNumber}!</strong></p>
-                <p>Waiting for admin to start the game...</p>
-                <div class="status-indicator">
-                    <div class="dot"></div>
-                    <div class="dot"></div>
-                    <div class="dot"></div>
+                <p style="margin: 10px 0; font-size: 24px; color: #2d5aa0; font-weight: bold;"><strong>You're in Team ${teamNumber}!</strong></p>
+                <p style="margin: 15px 0; font-size: 18px; color: #666;">Waiting for game to start...</p>
+                <div class="status-indicator" style="display: flex; justify-content: center; margin-top: 25px;">
+                    <div class="dot" style="width: 12px; height: 12px; background-color: #4285F4; border-radius: 50%; margin: 0 6px; animation: pulse 1.5s infinite ease-in-out;"></div>
+                    <div class="dot" style="width: 12px; height: 12px; background-color: #4285F4; border-radius: 50%; margin: 0 6px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 0.5s;"></div>
+                    <div class="dot" style="width: 12px; height: 12px; background-color: #4285F4; border-radius: 50%; margin: 0 6px; animation: pulse 1.5s infinite ease-in-out; animation-delay: 1s;"></div>
                 </div>
             `;
             
-            document.querySelector(".card-content-container").appendChild(waitingMessage);
+            console.log('About to append waiting message');
+            container.appendChild(waitingMessage);
+            console.log('Waiting message appended successfully');
+            
               // Send team selection to server
             const xhr = new XMLHttpRequest();
-            xhr.open("POST", "/monopoly/select_team", true);
+            xhr.open("POST", "/supportopoly/select_team", true);
             xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
             xhr.setRequestHeader("X-CSRFToken", document.querySelector("[name=csrfmiddlewaretoken]").value);
             xhr.send("team=" + teamNumber);
+            console.log('Team selection sent to server');
             
             // Connect to WebSocket for game updates
             connectWebSocket();
+            
+        } catch (error) {
+            console.error('Error in joinTeam:', error);
+            alert('Error joining team: ' + error.message);
+        }
         }
         
         function connectWebSocket() {
             const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
             const socket = new WebSocket(
-                wsScheme + "://" + window.location.host + "/monopoly/join/admin"
+            wsScheme + "://" + window.location.host + "/supportopoly/join/admin"
             );
             
             socket.onmessage = function(event) {
                 const data = JSON.parse(event.data);
                 
                 if (data.action === "start") {
-                    window.location.href = "/monopoly/game/admin";
+                window.location.href = "/supportopoly/game/admin";
                 }
             };
             
@@ -154,6 +249,28 @@
                 // Reconnect after a delay
                 setTimeout(connectWebSocket, 2000);
             };
+    }
+    
+    function leaveGame() {
+        if (confirm("Are you sure you want to leave the game?")) {
+            window.location.href = "/supportopoly/logout";
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const team1Card = document.getElementById("team-1");
+        const team2Card = document.getElementById("team-2");
+        
+        if (team1Card) {
+            team1Card.addEventListener("click", function() {
+                joinTeam(1);
+            });
+        }
+        
+        if (team2Card) {
+            team2Card.addEventListener("click", function() {
+                joinTeam(2);
+            });
         }
     });
 </script>
@@ -162,7 +279,7 @@
 {% block content %}
 <div class="header-container">
     <span class="user-display">{{ user.name }}</span>
-    <a href="/monopoly/logout"><button id="logout-button">Logout</button></a>
+    <a href="/supportopoly/logout"><button id="logout-button">Leave Game</button></a>
 </div>
 
 <div id="join-card-container" class="card">
@@ -176,11 +293,11 @@
         <div class="team-selection">
             <div id="team-1" class="team-card team-1">
                 <div class="team-name">Team 1</div>
-                <p>Join the blue team</p>
+                <p>Join Team 1</p>
             </div>
             <div id="team-2" class="team-card team-2">
                 <div class="team-name">Team 2</div>
-                <p>Join the red team</p>
+                <p>Join Team 2</p>
             </div>
         </div>
     </div>

@@ -18,5 +18,7 @@ from django.conf.urls.static import static
 from django.conf import settings
 
 urlpatterns = [
+    url(r'^supportopoly/', include('monopoly.urls')),
+    # Keep legacy monopoly URL for backwards compatibility
     url(r'^monopoly/', include('monopoly.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

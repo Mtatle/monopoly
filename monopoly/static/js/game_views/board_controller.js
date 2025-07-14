@@ -56,7 +56,6 @@ class BoardController {
 
     movePlayer(index, newTileId) {
         let currTileId = this.players[index].getTileId();
-        console.log("index and new tile id is: " + currTileId.toString() + " " + newTileId.toString());
 
         // Remove previous player position
         this.board.updateTileInfo(currTileId, {
@@ -74,9 +73,28 @@ class BoardController {
 
         // Animation: move the player
         return new Promise((resolve => {
+            // Calculate shortest path direction
+            const totalTiles = BoardController.TILE_MAX + 1; // 24 tiles (0-23)
+            const forwardDistance = (newTileId - currTileId + totalTiles) % totalTiles;
+            const backwardDistance = (currTileId - newTileId + totalTiles) % totalTiles;
+            
+            // Choose direction for shortest path
+            const moveForward = forwardDistance <= backwardDistance;
+            const direction = moveForward ? 1 : -1;
+            
+            console.log(`🎯 Moving player ${index} from tile ${currTileId} to ${newTileId}:`);
+            console.log(`   Forward: ${forwardDistance} tiles, Backward: ${backwardDistance} tiles`);
+            console.log(`   Choosing ${moveForward ? 'FORWARD' : 'BACKWARD'} direction`);
+            
             let playerMovementInterval = setInterval(() => {
-                currTileId += 1;
-                currTileId %= BoardController.TILE_MAX + 1;
+                currTileId += direction;
+                // Handle wrapping around the board
+                if (currTileId < 0) {
+                    currTileId = totalTiles - 1; // Wrap to tile 23
+                } else if (currTileId >= totalTiles) {
+                    currTileId = 0; // Wrap to tile 0
+                }
+                
                 const tileInfo = this.board.getTileInfo(currTileId);
                 const tilePlayerCount = tileInfo.players.reduce((a, b) => a + b, 0);
 
@@ -89,9 +107,13 @@ class BoardController {
 
                 if (currTileId === newTileId) {
                     clearInterval(playerMovementInterval);
+                    console.log(`✅ Player ${index} reached destination tile ${newTileId}`);
+                    // Add a longer delay to ensure the final position is fully rendered and settled
+                    setTimeout(() => {
                     resolve();
+                    }, 1000);
                 }
-            }, 200);
+            }, 300);
         }));
     }
 
@@ -130,6 +152,13 @@ class BoardController {
             type: BoardController.MODEL_PROPERTY,
             total: 1
         }), tileId, playerIndex);
+    }
+
+    removeLandMark(tileId) {
+        let tileInfo = this.board.getTileInfo(tileId);
+        if (tileInfo.propertyManager) {
+            tileInfo.propertyManager.removeLandMark();
+        }
     }
 
     initEngine() {
@@ -205,7 +234,7 @@ class BoardController {
         });
 
         const defaultTileMaterial = new THREE.MeshLambertMaterial({
-            map: new THREE.TextureLoader().load(`${this.assetsUrl}/tiles/-1.png`)
+            map: new THREE.TextureLoader().load(`${this.assetsUrl}/tiles/-1.png?v=3`)
         });
 
         // tile material
@@ -215,7 +244,7 @@ class BoardController {
             for (let col = 0; col < Board.SIZE; col++) {
                 const tileModelIndex = Board.posToTileId(row, col);
                 const tileMaterial = (tileModelIndex === -1) ? defaultTileMaterial : new THREE.MeshLambertMaterial({
-                    map: new THREE.TextureLoader().load(`${this.assetsUrl}/tiles/${tileModelIndex}.png`)
+                    map: new THREE.TextureLoader().load(`${this.assetsUrl}/tiles/${tileModelIndex}.png?v=3`)
                 });
                 rowMaterial.push(tileMaterial);
             }
@@ -298,6 +327,42 @@ class BoardController {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
+    clearAllProperties() {
+        // Clear all property managers and their associated 3D models
+        for (let row = 0; row < Board.SIZE; row++) {
+            for (let col = 0; col < Board.SIZE; col++) {
+                const tileInfo = this.board.board[row][col];
+                if (tileInfo.propertyManager) {
+                    tileInfo.propertyManager.clearAll();
+                    tileInfo.propertyManager = null;
+                }
+            }
+        }
+
+        // Also clear any land marks that might be in the scene
+        // Land marks are meshes with player mark textures
+        const objectsToRemove = [];
+        this.scene.traverse((child) => {
+            if (child.material && child.material.map && 
+                child.material.map.image && child.material.map.image.src &&
+                child.material.map.image.src.includes('player_') && 
+                child.material.map.image.src.includes('_mark.png')) {
+                objectsToRemove.push(child);
+            }
+        });
+
+        objectsToRemove.forEach(obj => {
+            this.scene.remove(obj);
+            if (obj.material) {
+                if (obj.material.map) obj.material.map.dispose();
+                obj.material.dispose();
+            }
+            if (obj.geometry) obj.geometry.dispose();
+        });
+
+        console.log("🔄 Cleared all properties and land marks from the board");
+    }
+
     boardToWorld(options) {
         const {tileId, type, total, index} = options;
         const pos = Board.tileIdToPos(tileId);
@@ -361,7 +426,7 @@ class BoardController {
     }
 }
 
-BoardController.SQUARE_SIZE = 7.273;
+BoardController.SQUARE_SIZE = 11.43;
 BoardController.MODEL_PLAYER = 0;
 BoardController.MODEL_PROPERTY = 1;
 BoardController.MODEL_PLAYER_OFFSET = 0.2;
@@ -370,4 +435,4 @@ BoardController.MODEL_PROPERTY_TOP_MARGIN = 0.39;
 BoardController.MODEL_PROPERTY_LEFT_MARGIN = 0.37;
 BoardController.MODEL_PROPERTY_MARGIN = 0.24;
 BoardController.MODEL_PROPERTY_LEFT_OFFSET = 0.05;
-BoardController.TILE_MAX = 39;
+BoardController.TILE_MAX = 23;

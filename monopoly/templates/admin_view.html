@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %} Monopoly - Admin {% endblock %}
+{% block title %} Supportopoly - Admin {% endblock %}
 
 {% block files %}
 <link rel="stylesheet" href="{% static 'css/join.css' %}">
@@ -95,7 +95,7 @@
 {% block content %}
 <div class="header-container">
     <span class="user-display">Admin</span>
-    <a href="/monopoly/logout"><button id="logout-button">Logout</button></a>
+    <a href="/supportopoly/logout"><button id="logout-button">Logout</button></a>
 </div>
 
 <div id="join-card-container" class="card">
@@ -166,7 +166,7 @@
                 
                 // Wait a moment then redirect to game page
                 setTimeout(() => {
-                    window.location.href = "/monopoly/game/admin";
+                    window.location.href = "/supportopoly/game/admin";
                 }, 1000);
             } else {
                 console.log("WebSocket not connected");

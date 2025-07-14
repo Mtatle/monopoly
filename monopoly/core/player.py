@@ -15,6 +15,7 @@ class Player(object):
         self._position = 0
         self._remaining_stop = 0
         self._properties = set()
+        self._points = 0
 
 
     def get_position(self):
@@ -49,6 +50,15 @@ class Player(object):
 
     def deduct_money(self, val):
         self._money -= val
+
+    def get_points(self):
+        return self._points
+
+    def add_points(self, val):
+        self._points += val
+
+    def set_points(self, val):
+        self._points = val
 
     def get_stop_num(self):
         return self._remaining_stop

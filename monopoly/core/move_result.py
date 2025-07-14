@@ -13,6 +13,7 @@ class MoveResult(object):
         self.land = land
         self.yes = None
         self.msg = None
+        self.go_to_jail = False  # Flag for Go to QA Jail tile
 
     def set_msg(self, msg):
         self.msg = msg
@@ -51,9 +52,18 @@ class MoveResult(object):
 
     def beautify(self):
         saying = self.msg if self.msg else ""
+        
+        # Don't add generic reward text for tiles that already have specific messages
+        if self.msg and ("Golden Chest" in self.msg or "Best Agent" in self.msg):
+            return saying
+        
         saying += " " + MoveResultType.get_description(self.move_result_type)
         if self.move_result_type == MoveResultType.BUY_LAND_OPTION:
-            saying += "The price is " + str(self.value)
+            # Check if this is a response station (price is 5, 10, or 15)
+            if self.value in [5, 10, 15]:
+                saying += "The price is " + str(self.value) + " SB"
+            else:
+                saying += "The price is " + str(self.value)
         elif self.move_result_type == MoveResultType.PAYMENT:
             saying += "The payment amount is " + str(self.value)
         elif self.move_result_type == MoveResultType.REWARD:

@@ -4,15 +4,19 @@ from django.contrib.auth import views as auth_views
 
 from monopoly.views.game_view import GameView
 from monopoly.views.join_view import JoinView
-from monopoly.views.login_view import LoginView
+from monopoly.views.login_view import LoginView, CheckActiveGameView
+from monopoly.views.logout_view import LogoutView
 from monopoly.views.profile_view import ProfileView
+from monopoly.views.spectator_view import SpectatorView
 from monopoly.views.team_view import TeamSelectView, AdminPanelView
 
 urlpatterns = [
     url(r'^$', login_required(JoinView.as_view()), name="join"),
     url(r'^game/(?P<host_name>.+)', login_required(GameView.as_view()), name='game'),
-    url(r'^logout$', auth_views.logout_then_login, name='logout'),
+    url(r'^logout$', LogoutView.as_view(), name='logout'),
     url(r'^login', LoginView.as_view(), name='login'),
+    url(r'^check_active_game/$', CheckActiveGameView.as_view(), name='check_active_game'),
+    url(r'^spectator$', login_required(SpectatorView.as_view()), name='spectator'),
     url(r'^profile/(?P<profile_user>.+)$', login_required(ProfileView.as_view()), name='profile'),
     url(r'^join/(?P<host_name>.*)', login_required(JoinView.as_view()), name="join"),
     # Team selection & team assignment

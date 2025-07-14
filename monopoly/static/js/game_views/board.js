@@ -39,45 +39,45 @@ class Board {
     }
 
     static tileIdToPos(tileId) {
-        if (tileId < 10) {
-            return [10, 10 - tileId];
-        } else if (tileId < 20) {
-            return [20 - tileId, 0];
-        } else if (tileId < 30) {
-            return [0, tileId - 20];
+        if (tileId < 7) {
+            return [6, 6 - tileId];  // Bottom row: right to left (0=bottom-right)
+        } else if (tileId < 12) {
+            return [12 - tileId, 0]; // Left column: bottom to top (7-11)
+        } else if (tileId < 18) {
+            return [0, tileId - 12]; // Top row: left to right (12-17)
         } else {
-            return [tileId - 30, 10];
+            return [tileId - 18, 6]; // Right column: top to bottom (18-23)
         }
     }
 
     static posToTileId(row, col) {
-        if (row === 0) {
-            return 20 + col;
-        } else if (row === 10) {
-            return 10 - col;
+        if (row === 6) {
+            return 6 - col;   // Bottom row: right to left (0-6)
+        } else if (row === 0) {
+            return 12 + col;  // Top row: left to right (12-17)
         } else if (col === 0) {
-            return 20 - row;
-        } else if (col === 10) {
-            return 30 + row;
+            return 12 - row;  // Left column: bottom to top (7-11)
+        } else if (col === 6) {
+            return 18 + row;  // Right column: top to bottom (18-23)
         } else {
-            return -1;
+            return -1;        // Interior tiles (not playable)
         }
     }
 
     static tileIdToSide(tileId) {
-        if (tileId < 10) {
-            return Board.SIDE_BOTTOM;
-        } else if (tileId < 20) {
-            return Board.SIDE_LEFT;
-        } else if (tileId < 30) {
-            return Board.SIDE_TOP;
+        if (tileId < 7) {
+            return Board.SIDE_BOTTOM;  // Tiles 0-6: bottom row
+        } else if (tileId < 12) {
+            return Board.SIDE_LEFT;    // Tiles 7-11: left column
+        } else if (tileId < 18) {
+            return Board.SIDE_TOP;     // Tiles 12-17: top row
         } else {
-            return Board.SIDE_RIGHT;
+            return Board.SIDE_RIGHT;   // Tiles 18-23: right column
         }
     }
 }
 
-Board.SIZE = 11;
+Board.SIZE = 7;
 
 Board.SIDE_TOP = 2;
 Board.SIDE_LEFT = 1;

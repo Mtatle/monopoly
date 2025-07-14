@@ -9,9 +9,13 @@ class PropertyManager {
         this.loadedHotelJson = loadedHotelJson;
         this.loadedHouseJson = loadedHouseJson;
         this.models = [];
+        this.landMark = null; // Track the land mark (ownership marker)
     }
 
     buyLand(pos, tileId, playerIndex) {
+        // Remove existing land mark if any
+        this.removeLandMark();
+        
         const material = new THREE.MeshBasicMaterial({
             map: new THREE.TextureLoader().load(`/static/images/player_${playerIndex}_mark.png`),
             transparent: true
@@ -27,6 +31,14 @@ class PropertyManager {
         square.rotation.z = -Math.PI / 2.0 * side;
 
         this.scene.add(square);
+        this.landMark = square; // Track the land mark
+    }
+
+    removeLandMark() {
+        if (this.landMark) {
+            this.scene.remove(this.landMark);
+            this.landMark = null;
+        }
     }
 
     buildHouse(pos, tileId) {
@@ -62,6 +74,17 @@ class PropertyManager {
 
     getPropertyCount() {
         return this.models.length;
+    }
+
+    clearAll() {
+        // Remove all houses and hotels
+        for (let model of this.models) {
+            this.scene.remove(model);
+        }
+        this.models = [];
+        
+        // Remove land mark (ownership marker)
+        this.removeLandMark();
     }
 }
 

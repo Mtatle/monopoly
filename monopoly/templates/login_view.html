@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %} Monopoly {% endblock %}
+{% block title %} Supportopoly {% endblock %}
 
 {% block files %}
 <link rel="stylesheet" href="{% static 'css/login.css' %}">
@@ -13,15 +13,90 @@
         <div class="card-blur"></div>
     </div>
     <div class="card-content-container">
+        {% if show_rejoin %}
+            <!-- Rejoin Section -->
+            <div id="rejoin-section" style="margin-bottom: 20px; padding: 15px; background: rgba(76, 175, 80, 0.1); border: 1px solid #4CAF50; border-radius: 8px;">
+                <span style="color: #4CAF50; font-weight: bold; font-size: 16px;">🎮 Game in Progress!</span>
+                <p style="margin: 10px 0; color: #333;">There's an active Supportopoly game and you were playing as <strong>{{ rejoin_username }}</strong>.</p>
+                <form method="POST" style="margin: 0;">
+                    {% csrf_token %}
+                    <input type="hidden" name="username" value="{{ rejoin_username }}">
+                    <input type="hidden" name="rejoin_action" value="rejoin">
+                    <button type="submit" style="background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold;">
+                        🔄 Rejoin Current Game
+                    </button>
+                </form>
+            </div>
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+            <span style="color: #666; font-size: 14px;">Or start a new session:</span>
+        {% endif %}
+        
         <form id="form-container" class="center" method="POST">
             {% csrf_token %}
-            <span id="login-title">Login to Monopoly</span>
+            <span id="login-title">Login to Supportopoly</span>
             {% if error %}
                 <span id="login-error" class="card"> {{ error }} </span>
             {% endif %}
-            <input name="username" id="login-user-name" placeholder="User Name" required />
+            <input name="username" id="login-user-name" placeholder="Enter your name" required />
             <button type="submit" id="login-submit" class="large-button">Enter</button>
         </form>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Check if there's an active game when page loads
+    checkForActiveGame();
+    
+    // Check every 5 seconds for an active game
+    setInterval(checkForActiveGame, 5000);
+});
+
+function checkForActiveGame() {
+    // Don't check if rejoin section is already showing
+    if (document.getElementById('rejoin-section')) {
+        return;
+    }
+    
+    fetch('/supportopoly/check_active_game/')
+        .then(response => response.json())
+        .then(data => {
+            if (data.has_active_game && data.rejoinable_users && data.rejoinable_users.length > 0) {
+                showRejoinOptions(data.rejoinable_users);
+            }
+        })
+        .catch(error => {
+            console.log('No active game check available');
+        });
+}
+
+function showRejoinOptions(users) {
+    const container = document.getElementById('login-container').querySelector('.card-content-container');
+    const formContainer = document.getElementById('form-container');
+    
+    // Create rejoin section
+    const rejoinSection = document.createElement('div');
+    rejoinSection.innerHTML = `
+        <div style="margin-bottom: 20px; padding: 15px; background: rgba(76, 175, 80, 0.1); border: 1px solid #4CAF50; border-radius: 8px;">
+            <span style="color: #4CAF50; font-weight: bold; font-size: 16px;">🎮 Game in Progress!</span>
+            <p style="margin: 10px 0; color: #333;">There's an active Supportopoly game. Click your username to rejoin:</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0;">
+                ${users.map(user => `
+                    <button onclick="rejoinAs('${user}')" style="background: #4CAF50; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px;">
+                        🔄 Rejoin as ${user}
+                    </button>
+                `).join('')}
+            </div>
+        </div>
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ddd;">
+        <span style="color: #666; font-size: 14px;">Or start a new session:</span>
+    `;
+    
+    container.insertBefore(rejoinSection, formContainer);
+}
+
+function rejoinAs(username) {
+    window.location.href = `/supportopoly/login?rejoin_as=${encodeURIComponent(username)}`;
+}
+</script>
 {% endblock %}

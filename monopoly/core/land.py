@@ -209,6 +209,118 @@ class ChanceLand(object):
         return None
 
 
+class QuestionLand(object):
+    """Question field - answer correctly to own and gain 5 points"""
+    def __init__(self):
+        self._owner = None
+
+    def get_type(self):
+        return LandType.QUESTION
+
+    def get_owner_index(self):
+        return self._owner
+
+    def set_owner(self, index):
+        self._owner = index
+
+    def get_points_reward(self):
+        return 5
+
+
+class SurpriseLand(object):
+    """Surprise card field - random actions"""
+    def get_type(self):
+        return LandType.SURPRISE
+
+    def get_owner_index(self):
+        return None
+
+
+class ResponseStationLand(object):
+    """Response Station - buyable for 5 SB, rent varies based on owned count"""
+    def __init__(self):
+        self._owner = None
+
+    def get_type(self):
+        return LandType.RESPONSE_STATION
+
+    def get_owner_index(self):
+        return self._owner
+
+    def set_owner(self, index):
+        self._owner = index
+
+    def get_price(self):
+        return 5
+
+    def get_rent(self, owned_stations_count):
+        """Rent: 6 SB for 1, 12 SB for 2, 18 SB for 3 stations"""
+        if owned_stations_count == 1:
+            return 6
+        elif owned_stations_count == 2:
+            return 12
+        elif owned_stations_count == 3:
+            return 18
+        return 0
+
+    def get_evaluation(self):
+        return self.get_price()
+
+
+class GoldenChestLand(object):
+    """Golden Chest - earn 15 SB"""
+    def get_type(self):
+        return LandType.GOLDEN_CHEST
+
+    def get_owner_index(self):
+        return None
+
+    def get_reward(self):
+        return 15
+
+
+class BestAgentLand(object):
+    """Best Agent - get 10 points"""
+    def get_type(self):
+        return LandType.BEST_AGENT
+
+    def get_owner_index(self):
+        return None
+
+    def get_points_reward(self):
+        return 10
+
+
+class ConnectivityCostLand(object):
+    """Connectivity Cost Center - pay 10 SB"""
+    def get_type(self):
+        return LandType.CONNECTIVITY_COST
+
+    def get_owner_index(self):
+        return None
+
+    def get_cost(self):
+        return 10
+
+
+class GoToJailLand(object):
+    """Go to QA Jail - move to jail"""
+    def get_type(self):
+        return LandType.GO_TO_JAIL
+
+    def get_owner_index(self):
+        return None
+
+
+class TrainingTimeLand(object):
+    """Training Time - no action"""
+    def get_type(self):
+        return LandType.TRAINING_TIME
+
+    def get_owner_index(self):
+        return None
+
+
 class LandType(object):
     CONSTRUCTION_LAND = 0
     INFRA = 1
@@ -216,6 +328,14 @@ class LandType(object):
     PARKING = 3
     JAIL = 4
     CHANCE = 5
+    QUESTION = 6
+    SURPRISE = 7
+    RESPONSE_STATION = 8
+    GOLDEN_CHEST = 9
+    BEST_AGENT = 10
+    CONNECTIVITY_COST = 11
+    GO_TO_JAIL = 12
+    TRAINING_TIME = 13
 
     @staticmethod
     def get_description(val):
@@ -224,5 +344,13 @@ class LandType(object):
                "New Start",
                "Parking ",
                "AIV Jail",
-               "Chance Card"]
+               "Chance Card",
+               "Question Field",
+               "Surprise Card",
+               "Response Station",
+               "Golden Chest",
+               "Best Agent",
+               "Connectivity Cost Center",
+               "Go to QA Jail",
+               "Training Time"]
         return ret[val]
