@@ -190,9 +190,9 @@ def ws_message(message):
     if action == "end_game":
         handle_end_game(hostname, games)
         if hostname in games:
-        del games[hostname]
+            del games[hostname]
         if hostname in rooms:
-        del rooms[hostname]
+            del rooms[hostname]
         if hostname in changehandlers:
             del changehandlers[hostname]
     if action == "sudden_death_update_score":
