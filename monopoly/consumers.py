@@ -68,6 +68,19 @@ def ws_connect_for_join(message):
 
     Group(hostname).add(message.reply_channel)
 
+    # If a game is already running for this hostname (admin room), immediately
+    # notify the newly-connected client so they don’t stay stuck on the
+    # “Waiting for game to start…” screen. This makes it possible for players
+    # who join after the host pressed Start (or who refresh their browser)
+    # to jump straight into the active game without requiring the host to
+    # restart the game.
+    if hostname in games:
+        # Send only to this client (reply_channel) rather than broadcasting to
+        # all, to avoid duplicate "start" messages for users already in game.
+        message.reply_channel.send({
+            "text": build_start_msg()
+        })
+
     # # response_text = serializers.serialize('json', Item.objects.all())
     userlist = []
     Group(hostname).send({
