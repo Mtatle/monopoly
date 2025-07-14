@@ -1,5 +1,5 @@
 [Email]
-Host: smtp.andrew.cmu.edu
-Port: 465
-User: Andrew ID
-Password: Your Password
+Host = smtp.andrew.cmu.edu
+Port = 465
+User = Andrew ID
+Password = Your Password
