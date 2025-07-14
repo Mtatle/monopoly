@@ -31,7 +31,7 @@ class Game(object):
         self._handlers = []
         self.add_game_change_listner(InternalLogHandler(self))
         self.notify_new_game()
-        
+
         # === Ensure Surprise Cards are unique per game ===
         import random
         self._unused_surprise_cards = list(range(40))  # 40 surprise cards (0-39)
