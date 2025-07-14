@@ -1283,6 +1283,7 @@ class GameView {
         
         // Hide timer for all users when card is closed
         this.hideSuddenDeathTimer();
+        this.hideQuestionCardTimer();
         
         // Close points tracker for sudden death blitz
         let tracker = document.getElementById('sudden-death-points-tracker');
@@ -2300,7 +2301,7 @@ class GameView {
                 },
                 {
                     question: "What are the two scenarios where agents can de-escalate an issue?",
-                    answer: "1) They can de-esc and re-esc when the customer shared vital info for the resolution\n2) they can de-esc if the customer says their issue has been resolved"
+                    answer: "1) They can de-esc and re-esc when the customer shared vital info for the resolution\n2)  They can de-esc if the customer says their issue has been resolved"
                 },
                 {
                     question: "\"I returned something, but the tracking shows it's stuck. Will I still get my refund on time?\" How will you provide a resolution to this?",
@@ -4332,39 +4333,32 @@ class GameView {
         // Shop items data
         this.shopItems = [
             {
-                id: 'team_hint',
-                name: 'Team Hint',
-                cost: 2,
-                description: 'Get a clue from the host',
-                icon: '💡'
+                id: 'money_back',
+                name: 'Money Back Guarantee',
+                cost: 8,
+                description: 'Skip any fine',
+                icon: '💰'
             },
             {
-                id: 'skip_pass',
-                name: 'Skip a Pass',
-                cost: 3,
-                description: 'Skip a tricky question',
-                icon: '🚫'
+                id: 'jail_free',
+                name: 'Get Out of Jail',
+                cost: 15,
+                description: 'Skip a penalty square',
+                icon: '🗝️'
             },
             {
                 id: 'double_down',
                 name: 'Double Down',
-                cost: 4,
-                description: 'Double your next correct answer',
+                cost: 20,
+                description: 'Double your points on a correct answer. Use only when answering for points. Must be played before rolling the dice. If incorrect, you lose the card and gain no points.',
                 icon: '⚡'
             },
             {
                 id: 'time_travel',
                 name: 'Time Travel',
-                cost: 5,
-                description: 'Roll twice in one turn',
+                cost: 30,
+                description: 'One additional die roll. Must be used before rolling!',
                 icon: '🕐'
-            },
-            {
-                id: 'jail_free',
-                name: 'Get out of Jail Free Card',
-                cost: 10,
-                description: 'Get out of Jail Free card',
-                icon: '🗝️'
             }
         ];
     }
