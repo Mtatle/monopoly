@@ -13,5 +13,5 @@ class MoveResultType(object):
                "is rewarded a fortune. ",
                "is stopped for one round. ",
                "is choosing to build a new building or not. ",
-               "Nothing actually happened. "]
+               "encountered a tile event. "]
         return ret[val]

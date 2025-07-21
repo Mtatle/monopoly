@@ -227,10 +227,11 @@ class BoardController {
             map: new THREE.TextureLoader().load(`${this.assetsUrl}/board_texture.jpg`)
         });
 
-        // ground material
+        // ground material - light green center
         this.materials.groundMaterial = new THREE.MeshBasicMaterial({
+            color: 0x90EE90,  // Light green color
             transparent: true,
-            map: new THREE.TextureLoader().load(`${this.assetsUrl}/ground.png`)
+            opacity: 0.9
         });
 
         const defaultTileMaterial = new THREE.MeshLambertMaterial({

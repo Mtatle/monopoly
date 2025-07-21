@@ -23,9 +23,16 @@ class GameView {
         
         this.questionCardTimer = {
             isRunning: false,
-            timeLeft: 120, // 2 minutes = 120 seconds
-            intervalId: null
+            timeLeft: 90, // 1:30 = 90 seconds (default)
+            intervalId: null,
+            currentTileId: null // Track which tile is currently being timed
         }; // Timer for question cards
+        
+        this.flashRoundTimer = {
+            isRunning: false,
+            timeLeft: 20, // 20 seconds for flash round
+            intervalId: null
+        }; // Timer for flash round
         
         // Support Bucks Shop System
         this.teamInventories = {
@@ -48,6 +55,19 @@ class GameView {
             currentQuestionIndex: 0,
             score: 0,
             timerRunning: false
+        };
+
+        // Flash Round State
+        this.flashRound = {
+            active: false,
+            currentTeam: null,
+            currentQuestionIndex: 0,
+            score: 0,
+            timerRunning: false,
+            usedQuestions: {
+                unsubscribe: [],
+                close: []
+            }
         };
 
         // Track used surprise cards during admin testing to avoid duplicates
@@ -166,6 +186,9 @@ class GameView {
             // Initialize admin panel
             this.initAdminPanel();
             
+            // Initialize admin quick action buttons
+            this.initAdminQuickButtons();
+            
             // Initialize emergency controls
             this.initEmergencyControls();
             this.initTimerControls();
@@ -250,6 +273,7 @@ class GameView {
             "admin_modify_money": this.handleAdminModifyMoney,
             "admin_modify_points": this.handleAdminModifyPoints,
             "admin_rent_money": this.handleAdminRentMoney,
+            "admin_passing_start": this.handleAdminPassingStart,
             "admin_reset_game": this.handleAdminResetGame,
             "admin_set_turn": this.handleAdminSetTurn,
             "admin_set_ownership": this.handleAdminSetOwnership,
@@ -276,7 +300,11 @@ class GameView {
             "start_sudden_death_blitz": this.handleStartSuddenDeathBlitz,
             "start_question_card_timer": this.handleStartQuestionCardTimer,
             "reset_question_card_timer": this.handleResetQuestionCardTimer,
-            "surprise_card_inventory_added": this.handleSurpriseCardInventoryAdded
+            "surprise_card_inventory_added": this.handleSurpriseCardInventoryAdded,
+            "steal_card_used": this.handleStealCardUsed,
+            "adjust_question_timer": this.handleAdjustQuestionTimer,
+            "tile_action": this.handleTileAction,
+            "start_flash_round_timer": this.handleStartFlashRoundTimer
         };
 
         if (!this.gameInProcess) {
@@ -748,16 +776,21 @@ class GameView {
             await new Promise(resolve => setTimeout(resolve, 500));
         }
 
+        // Removed automatic bypass_start handling - now handled by admin buttons only
         // Handle passing START
-        if (message.bypass_start === "true") {
-            const isCardMessage = eventMsg.includes('SHOW_QUESTION_CARD:') || eventMsg.includes('SHOW_SURPRISE_CARD:');
-            if (!isCardMessage) {
-                 await this.showModal(currPlayer, "Passed START", "", `${this.teamNames[currPlayer]} collected 10 SB!`, [], 2);
-            }
-             if (message.is_cash_change === "true") {
-                this.changeCashAmount(message.curr_cash);
-             }
-        }
+        // if (message.bypass_start === "true") {
+        //     const isCardMessage = eventMsg.includes('SHOW_QUESTION_CARD:') || eventMsg.includes('SHOW_SURPRISE_CARD:');
+        //     if (!isCardMessage) {
+        //          await this.showModal(currPlayer, "Passed START", "", `${this.teamNames[currPlayer]} collected 10 SB!`, [], 2);
+        //     }
+        //     // Show toast notification for passing start (always show, regardless of card)
+        //     this.showToastNotification(`${this.teamNames[currPlayer]} gained 10 SB for passing Start`);
+        //     // Play cash sound
+        //     this.playSound("cash");
+        //      if (message.is_cash_change === "true") {
+        //         this.changeCashAmount(message.curr_cash);
+        //      }
+        // }
 
         // Handle the tile's primary event
         if (message.is_option === "true") {
@@ -792,8 +825,12 @@ class GameView {
                     }
                 }, 3000); // Much longer delay to ensure player animation completes
             } else {
-                if (message.new_event === "true") {
-                    // Add delay for regular modals too
+                // Check if this is a special tile that should show a modal
+                const specialTiles = ["Best Agent", "Golden Chest", "Connectivity Cost Center", "Training Time", "QA Jail"];
+                const isSpecialTile = specialTiles.includes(landname);
+                
+                if (message.new_event === "true" || isSpecialTile) {
+                    // Add delay for regular modals and special tiles
                     setTimeout(async () => {
                         await this.showModal(currPlayer, title, landname, this.teamNames[currPlayer] + eventMsg, [], 3);
                         // Change player AFTER modal closes
@@ -886,12 +923,12 @@ class GameView {
 
         // Get tile names for better display
         const tileNames = {
-            0: "Start", 1: "Empathy Lane", 2: "Surprise Card", 3: "Moonstar Response Station",
-            4: "Knowledge Knoll", 5: "Golden Chest", 6: "QA Jail", 7: "Escalation Ave",
-            8: "Riddleton Place", 9: "Starlight Response Station", 10: "Surprise Card", 11: "Sale-A-Vie Blvd",
-            12: "Best Agent", 13: "Surprise Card", 14: "Knowledge Square", 15: "Sunshine Response Station",
-            16: "Connectivity Cost Center", 17: "Problem Plaza", 18: "Go to QA Jail", 19: "Inquiry Inspections",
-            20: "Training Time", 21: "Coupon Court", 22: "Resolution Road", 23: "Surprise Card"
+            0: "Start", 1: "Riddle me this", 2: "Flash round", 3: "Moonstar Response Station",
+            4: "Mystery Mash", 5: "Golden Chest", 6: "QA Jail", 7: "Double or nothing",
+            8: "Riddleton Place", 9: "Starlight Response Station", 10: "Mystery Mash", 11: "Flash round",
+            12: "Best Agent", 13: "Mystery Mash", 14: "Flash round", 15: "Sunshine Response Station",
+            16: "Connectivity Cost Center", 17: "Problem Plaza", 18: "Go to QA Jail", 19: "Flash round",
+            20: "Training Time", 21: "Moonlight Response Station", 22: "Coupon Court", 23: "Mystery Mash"
         };
 
         const tileName = tileNames[newPosition] || `Tile ${newPosition}`;
@@ -921,6 +958,27 @@ class GameView {
         this.changeCashAmount(currCash);
         
         console.log(`💰 Updated team cash:`, this.teamCash);
+        
+        // Show toast notification for all players
+        this.showToastNotification(notificationMessage);
+        
+        // Play cash sound for all players
+        this.playSound("cash");
+    }
+
+    handleAdminPassingStart(message) {
+        const playerIndex = message.player_index;
+        const currCash = message.curr_cash;
+        const notificationMessage = message.notification_message;
+        
+        console.log(`🏁 Admin passing start: ${notificationMessage}`);
+        console.log(`🏁 Received cash amounts:`, currCash);
+        console.log(`🏁 Previous team cash:`, this.teamCash);
+        
+        // Update cash amounts
+        this.changeCashAmount(currCash);
+        
+        console.log(`🏁 Updated team cash:`, this.teamCash);
         
         // Show toast notification for all players
         this.showToastNotification(notificationMessage);
@@ -1089,6 +1147,8 @@ class GameView {
                 stationName = "Starlight Response Station";
             } else if (tileId === 15) {
                 stationName = "Sunshine Response Station";
+            } else if (tileId === 21) {
+                stationName = "Moonlight Response Station";
             }
             
             // Check if current user is admin
@@ -1121,7 +1181,7 @@ class GameView {
             // Player landed in jail and is stuck for one turn
             const teamName = this.teamNames[playerIndex] || `Team ${playerIndex + 1}`;
             this.showModal(playerIndex, `QA Jail`, teamName,
-                `${teamName} landed in QA Jail and is stopped for one turn!`, [], 3);
+                `${teamName} is now in jail and is skipping the next round!`, [], 3);
             console.log(`⚡ ${teamName} is stuck in jail for one turn`);
         } else if (cardType === 'BUY_STATION') {
             // Unowned station - show purchase option
@@ -1135,6 +1195,8 @@ class GameView {
                 stationName = "Starlight Response Station";
             } else if (tileId === 15) {
                 stationName = "Sunshine Response Station";
+            } else if (tileId === 21) {
+                stationName = "Moonlight Response Station";
             }
             
             // Check if current user is admin
@@ -1167,6 +1229,8 @@ class GameView {
                 stationName = "Starlight Response Station";
             } else if (tileId === 15) {
                 stationName = "Sunshine Response Station";
+            } else if (tileId === 21) {
+                stationName = "Moonlight Response Station";
             }
             
             this.showModal(playerIndex, `Pay Rent`, teamName,
@@ -1186,10 +1250,13 @@ class GameView {
                 message = `${teamName} is the Best Agent! Gained 10 points.`;
             } else if (tileName === "Connectivity Cost Center") {
                 title = "Connectivity Cost Center";
-                message = `${teamName} must pay 10 SB for connectivity costs.`;
+                message = `${teamName} must pay 5 SB for connectivity costs.`;
             } else if (tileName === "Training Time") {
                 title = "Training Time";
-                message = `${teamName} takes a break. Time for a rest!`;
+                message = `${teamName} is in training! Take a break.`;
+            } else if (tileName === "QA Jail") {
+                title = "QA Jail";
+                message = `${teamName} is just visiting QA Jail. No penalty or reward.`;
             } else {
                 // Fallback for any other special tiles
                 title = tileName;
@@ -1689,9 +1756,15 @@ class GameView {
         existingTextOverlays.forEach(overlay => overlay.remove());
         
         let questionImagePath, answerImagePath;
-        if (cardType === 'QUESTION') {
-            questionImagePath = `/static/3d_assets/cards/${tileId}q.png`;
-            answerImagePath = `/static/3d_assets/cards/${tileId}a.png`;
+        if (cardType === 'QUESTION' || cardType === 'QUESTION_STEAL') {
+            // Special handling for Riddle me this tile (tile 1)
+            if (tileId === 1) {
+                questionImagePath = `/static/3d_assets/cards/riddle-me-this-q.png?v=${Date.now()}`;
+                answerImagePath = `/static/3d_assets/cards/riddle-me-this-a.png?v=${Date.now()}`;
+            } else {
+            questionImagePath = `/static/3d_assets/cards/${tileId}q.png?v=${Date.now()}`;
+            answerImagePath = `/static/3d_assets/cards/${tileId}a.png?v=${Date.now()}`;
+            }
             
             // Use specific question index from server or fall back to random selection
             let cardData;
@@ -1708,7 +1781,12 @@ class GameView {
             if (cardData) {
                 // Create text overlays for question and answer
                 this.createCardTextOverlay(cardFlipContainer, cardData.question, 'front', cardType, tileId);
-                this.createCardTextOverlay(cardFlipContainer, cardData.answer, 'back', cardType, tileId);
+                // Check for special class for the answer
+                let specialClass = null;
+                if (tileId === 11 && questionIndex !== null && this.getCardData()[11][questionIndex] && this.getCardData()[11][questionIndex].specialAnswerClass) {
+                    specialClass = this.getCardData()[11][questionIndex].specialAnswerClass;
+                }
+                this.createCardTextOverlay(cardFlipContainer, cardData.answer, 'back', cardType, tileId, specialClass);
             } else {
                 console.log('No card data found for tile:', tileId, 'index:', questionIndex);
             }
@@ -1756,11 +1834,20 @@ class GameView {
             cardBackImage.src = answerImagePath;
             
             // Show question card timer for question cards only
-            this.showQuestionCardTimer();
+            this.showQuestionCardTimer(tileId);
+            
+            // Add steal card option if this is a steal opportunity
+            if (cardType === 'QUESTION_STEAL') {
+                this.addStealCardOption(cardOverlay, tileId, questionIndex);
+            }
         } else if (cardType === 'SUDDEN_DEATH') {
             // Sudden death cards use special images
             questionImagePath = `/static/3d_assets/cards/sudden-death-q.png`;
             answerImagePath = `/static/3d_assets/cards/sudden-death-a.png`;
+        } else if (cardType === 'FLASH_ROUND') {
+            // Flash round cards use special images
+            questionImagePath = `/static/3d_assets/cards/flash-round-q.png`;
+            answerImagePath = `/static/3d_assets/cards/flash-round-a.png`;
             
             // Use specific question index from server with category
             const categoryQuestions = this.getSuddenDeathQuestionsByCategory(category);
@@ -1815,14 +1902,81 @@ class GameView {
             
             cardImage.src = questionImagePath;
             cardBackImage.src = answerImagePath;
+        } else if (cardType === 'FLASH_ROUND') {
+            // Flash round cards use special images and logic
+            questionImagePath = `/static/3d_assets/cards/flash-round-q.png`;
+            answerImagePath = `/static/3d_assets/cards/flash-round-a.png`;
+            
+            // Get the current flash round question data
+            const questionData = this.getRandomFlashRoundQuestion();
+            
+            if (questionData) {
+                // Create text overlays for question and answer
+                this.createCardTextOverlay(cardFlipContainer, questionData.question, 'front', cardType, null);
+                this.createCardTextOverlay(cardFlipContainer, questionData.answer, 'back', cardType, null);
+            } else {
+                console.log('No flash round card data found');
+            }
+            
+            // For flash round cards, always use fast-flip class
+            cardFlipContainer.classList.add('fast-flip');
+            
+            // Check if current user is admin
+            const hostname = document.getElementById('hostname').value;
+            const username = document.getElementById('username').value;
+            const isAdmin = (username === hostname);
+            
+            if (isAdmin) {
+                cardFlipContainer.classList.add('admin-clickable');
+                
+                // Add flip functionality for admin
+                cardFlipContainer.onclick = () => {
+                    if (!cardFlipContainer.classList.contains('flipped')) {
+                        // Play card flip sound
+                        this.playCardFlipSound();
+                        
+                        cardFlipContainer.classList.add('flipped');
+                        
+                        // Send flip notification to all clients
+                        this.socket.send(JSON.stringify({
+                            action: "card_flipped",
+                            hostname: this.hostName
+                        }));
+                        
+                        // Enable closing and show Next Card button after flip completes
+                        setTimeout(() => {
+                            this.enableFlashRoundCardClosing(cardOverlay, cardCloseBtn);
+                        }, 400); // Fast animation duration for flash round
+                    }
+                };
+                
+                // Disable closing initially for flash round cards (admin needs to flip first)
+                cardCloseBtn.style.display = 'none';
+                cardOverlay.onclick = null;
+            } else {
+                // Non-admin users cannot interact with flash round cards at all
+                cardFlipContainer.onclick = null;
+                cardCloseBtn.style.display = 'none';
+                cardOverlay.onclick = null;
+            }
+            
+            cardImage.src = questionImagePath;
+            cardBackImage.src = answerImagePath;
         } else if (cardType === 'SURPRISE') {
+            // Use mystery-mash.png for Mystery Mash tiles (positions 4, 10, 13, 23)
+            if (tileId === 4 || tileId === 10 || tileId === 13 || tileId === 23) {
+                questionImagePath = `/static/3d_assets/cards/mystery-mash.png`;
+                // Use Mystery Mash card text for Mystery Mash tiles
+                const mysteryMashText = this.getMysteryMashCardText(surpriseIndex);
+                this.createCardTextOverlay(cardFlipContainer, mysteryMashText, 'front', cardType, null);
+            } else {
             questionImagePath = `/static/3d_assets/cards/surprise-card.png`;
+                // Use regular surprise card text for other surprise tiles
+                const surpriseText = this.getSurpriseCardText(surpriseIndex);
+                this.createCardTextOverlay(cardFlipContainer, surpriseText, 'front', cardType, null);
+            }
             cardImage.src = questionImagePath;
             cardBackImage.src = ''; // No back image for surprise cards
-            
-            // Add surprise card text overlay - use specific index if provided
-            const surpriseText = this.getSurpriseCardText(surpriseIndex);
-            this.createCardTextOverlay(cardFlipContainer, surpriseText, 'front', cardType, null); // Use 'front' type for plain styling
             
             // Surprise cards can't be flipped - remove any flip functionality
             cardFlipContainer.onclick = null;
@@ -1846,9 +2000,177 @@ class GameView {
         cardOverlay.style.display = 'flex';
     }
 
-    createCardTextOverlay(parentElement, text, type, cardType = null, tileId = null) {
+    addStealCardOption(cardOverlay, tileId, questionIndex) {
+        // Check if current player has a steal card
+        const currentPlayer = this.getCurrentPlayerFromGameState();
+        if (currentPlayer === null || !this.teamInventories[currentPlayer] || !this.teamInventories[currentPlayer]['steal_card']) {
+            return; // No steal card available
+        }
+
+        // Create steal card option overlay
+        const stealOptionOverlay = document.createElement('div');
+        stealOptionOverlay.className = 'steal-card-option';
+        stealOptionOverlay.style.cssText = `
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid #fff;
+        `;
+        
+        stealOptionOverlay.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span>🦹</span>
+                <span>Use Steal Card</span>
+            </div>
+        `;
+
+        // Add hover effects
+        stealOptionOverlay.addEventListener('mouseenter', () => {
+            stealOptionOverlay.style.transform = 'scale(1.05)';
+            stealOptionOverlay.style.boxShadow = '0 6px 20px rgba(0,0,0,0.4)';
+        });
+
+        stealOptionOverlay.addEventListener('mouseleave', () => {
+            stealOptionOverlay.style.transform = 'scale(1)';
+            stealOptionOverlay.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
+        });
+
+        // Add click handler
+        stealOptionOverlay.addEventListener('click', () => {
+            this.useStealCard(tileId, questionIndex, currentPlayer);
+        });
+
+        // Add to card overlay
+        cardOverlay.appendChild(stealOptionOverlay);
+    }
+
+    useStealCard(tileId, questionIndex, currentPlayer) {
+        console.log(`🦹 Using steal card on tile ${tileId} by player ${currentPlayer}`);
+        
+        // Remove steal card from inventory
+        this.teamInventories[currentPlayer]['steal_card']--;
+        if (this.teamInventories[currentPlayer]['steal_card'] <= 0) {
+            delete this.teamInventories[currentPlayer]['steal_card'];
+        }
+        
+        // Update inventory display
+        this.updateInventoryDisplay();
+        
+        // Show notification
+        this.showToastNotification(`${this.teamNames[currentPlayer]} used a Steal Card! 🦹`);
+        
+        // Broadcast steal card usage
+        this.socket.send(JSON.stringify({
+            action: "steal_card_used",
+            team_index: currentPlayer,
+            tile_id: tileId,
+            question_index: questionIndex,
+            hostname: this.hostName
+        }));
+        
+        // Remove the steal option overlay
+        const stealOption = document.querySelector('.steal-card-option');
+        if (stealOption) {
+            stealOption.remove();
+        }
+    }
+
+    showMaintenanceFeeModal(tilePosition, ownedStations = 0) {
+        console.log(`🔧 Showing maintenance fee modal for tile ${tilePosition} with ${ownedStations} owned stations`);
+        
+        // Get tile name based on position
+        const tileNames = {
+            1: "Riddle me this",
+            8: "Riddleton Place", 
+            17: "Problem Plaza",
+            22: "Coupon Court"
+        };
+        
+        const tileName = tileNames[tilePosition] || `Tile ${tilePosition}`;
+        
+        // Calculate maintenance fee: 1 SB per owned station
+        const maintenanceFee = ownedStations;
+        
+        // Create appropriate message based on number of stations
+        let message;
+        if (ownedStations === 0) {
+            message = `You own this question tile but have no response stations. No maintenance fees due.`;
+        } else if (ownedStations === 1) {
+            message = `You own this question tile and 1 response station. Pay ${maintenanceFee} Support Buck for maintenance fees.`;
+        } else {
+            message = `You own this question tile and ${ownedStations} response stations. Pay ${maintenanceFee} Support Bucks for maintenance fees.`;
+        }
+        
+        // Show modal with maintenance fee message
+        this.showModal(
+            null, // No specific player
+            "🔧 Maintenance Fees Due",
+            `${tileName}`,
+            message,
+            [
+                {
+                    text: `💰 Pay ${maintenanceFee} SB`,
+                    action: () => {
+                        console.log(`🔧 Maintenance fee paid for tile ${tilePosition}: ${maintenanceFee} SB`);
+                        this.hideModal();
+                        // No actual money deduction - just for display
+                        this.showToastNotification(`🔧 Maintenance fees paid! ${maintenanceFee} SB deducted.`);
+                    }
+                }
+            ],
+            0 // No auto-hide
+        );
+    }
+
+    showFlashRoundIntroModal(tilePosition) {
+        console.log(`⚡ Showing flash round intro modal for tile ${tilePosition}`);
+        
+        // Get tile name based on position
+        const tileNames = {
+            2: "Flash Round",
+            11: "Flash Round",
+            14: "Flash Round",
+            19: "Flash Round"
+        };
+        
+        const tileName = tileNames[tilePosition] || `Tile ${tilePosition}`;
+        
+        // Show intro modal
+        this.showModal(
+            null, // No specific player
+            "⚡ Flash Round!",
+            `${tileName}`,
+            `Get ready for a lightning-fast round! You'll have 20 seconds to answer each question. Mix of Unsubscribe and Close questions coming your way!`,
+            [
+                {
+                    text: "🚀 Start Flash Round",
+                    action: () => {
+                        console.log(`⚡ Starting flash round for tile ${tilePosition}`);
+                        this.hideModal();
+                        this.startFlashRound(tilePosition);
+                    }
+                }
+            ],
+            0 // No auto-hide
+        );
+    }
+
+    createCardTextOverlay(parentElement, text, type, cardType = null, tileId = null, specialClass = null) {
         const textOverlay = document.createElement('div');
         textOverlay.className = `card-text-overlay card-text-${type}`;
+        if (specialClass) {
+            textOverlay.classList.add(specialClass);
+        }
         
         // Function to convert URLs to hyperlinks
         const convertUrlsToLinks = (text) => {
@@ -1928,9 +2250,9 @@ class GameView {
         textOverlay.style.position = 'absolute';
         textOverlay.style.top = '50%'; // Center vertically in the card
         
-        // Special handling for Knowledge Knoll answer texts - bigger top margin
+        // Special handling for Mystery Mash answer texts - bigger top margin
         if (tileId == 4 && type === 'back') {
-            textOverlay.style.marginTop = '80px'; // Bigger offset for Knowledge Knoll answers to avoid PNG image
+            textOverlay.style.marginTop = '80px'; // Bigger offset for Mystery Mash answers to avoid PNG image
         } else {
             textOverlay.style.marginTop = '40px'; // Normal offset for all other cards
         }
@@ -1938,7 +2260,7 @@ class GameView {
         textOverlay.style.width = '90%'; // Use more width
         textOverlay.style.maxWidth = '90%';
         textOverlay.style.wordWrap = 'break-word';
-        textOverlay.style.padding = '10px 15px'; // Less padding to use more space for text
+        textOverlay.style.padding = '25px 15px'; // Less padding to use more space for text
         textOverlay.style.backfaceVisibility = 'hidden'; // Hide when rotated away
         textOverlay.style.zIndex = '10';
         textOverlay.style.height = 'auto'; // Let content determine height
@@ -1954,6 +2276,16 @@ class GameView {
         }
         
         parentElement.appendChild(textOverlay);
+
+        // Ensure all links are clickable (pointer-events: auto)
+        // This is a JS fix in case CSS is too restrictive
+        setTimeout(() => {
+            const links = textOverlay.querySelectorAll('a');
+            links.forEach(link => {
+                link.style.pointerEvents = 'auto';
+                link.style.zIndex = '10000';
+            });
+        }, 0);
     }
 
     enableCardClosing(cardOverlay, cardCloseBtn) {
@@ -2092,258 +2424,166 @@ class GameView {
         };
     }
 
+    enableFlashRoundCardClosing(cardOverlay, cardCloseBtn) {
+        const closeCard = () => {
+            cardOverlay.style.display = 'none';
+            
+            // Hide timer when card is closed
+            this.hideFlashRoundTimer();
+            
+            // Hide points tracker when card is closed
+            const pointsTracker = document.getElementById('flash-round-points-tracker');
+            if (pointsTracker) {
+                pointsTracker.remove();
+            }
+            
+            // End flash round
+            this.endFlashRound();
+            
+            // Send card close notification to all clients
+            this.socket.send(JSON.stringify({
+                action: "card_closed",
+                hostname: this.hostName
+            }));
+        };
+
+        const nextCard = () => {
+            console.log("⚡ Next Card button clicked by admin");
+            
+            // Move to next flash round card
+            this.nextFlashRoundCard();
+        };
+
+        // Show both Close and Next Card buttons for flash round mode
+        cardCloseBtn.style.display = 'block';
+        cardCloseBtn.textContent = '×';  // Just X, not "Close Card"
+        cardCloseBtn.onclick = closeCard;
+
+        // Create and add Next Card button
+        let nextCardBtn = document.getElementById('next-card-btn');
+        if (!nextCardBtn) {
+            nextCardBtn = document.createElement('button');
+            nextCardBtn.id = 'next-card-btn';
+            nextCardBtn.textContent = 'Next Card';
+            nextCardBtn.style.cssText = `
+                position: absolute;
+                bottom: 20px;
+                left: 20px;
+                padding: 10px 20px;
+                background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: bold;
+                cursor: pointer;
+                z-index: 1001;
+                box-shadow: 0 4px 12px rgba(238, 90, 36, 0.3);
+                transition: all 0.3s ease;
+            `;
+            
+            nextCardBtn.addEventListener('mouseenter', () => {
+                nextCardBtn.style.transform = 'scale(1.05)';
+                nextCardBtn.style.boxShadow = '0 6px 16px rgba(238, 90, 36, 0.4)';
+            });
+            
+            nextCardBtn.addEventListener('mouseleave', () => {
+                nextCardBtn.style.transform = 'scale(1)';
+                nextCardBtn.style.boxShadow = '0 4px 12px rgba(238, 90, 36, 0.3)';
+            });
+            
+            cardOverlay.appendChild(nextCardBtn);
+        }
+        
+        nextCardBtn.style.display = 'block';
+        nextCardBtn.onclick = nextCard;
+
+        // Allow closing by clicking outside
+        cardOverlay.onclick = (e) => {
+            if (e.target === cardOverlay) closeCard();
+        };
+    }
+
     // Card text data for each tile - now supports multiple questions per tile
     getCardData() {
         return {
-            // Tile 1 - Empathy Lane
+            // Tile 1 - Riddle me this
             1: [
                 {
-                    question: "The customer is only expressing negative emotions but won't say what the issue is, even after being asked multiple times. What is the best course of action?",
-                    answer: "Apologize and acknowledge their frustration, express willingness to help, and let them know you're here when they're ready to share more details."
+                    question: "I'm not your fault, but I stop your flow,\nYou refresh and click, but still — no go.\nBefore you blame, check my route —\nWhat am I that knocks you out?",
+                    answer: "Connectivity Issues"
                 },
                 {
-                    question: "What does \"empathy\" mean in customer support?",
-                    answer: "Understanding and acknowledging the customer's feelings and perspective, alongside directly apologizing when necessary."
+                    question: "I show up twice a month, no less,\nTo share some wins,\nYou speak, I speak, we all align —\nWhat am I on your calendar line?",
+                    answer: "Biweekly Meeting"
                 },
                 {
-                    question: "When a customer shares personal information (e.g., about a life event), what should you do?",
-                    answer: "Briefly and politely acknowledge it, then guide the conversation back to the issue."
+                    question: "You say it's wrong, but I can't see —\nSo I ask you to send proof to me.\nA quick click helps us both feel sane —\nWhat step am I in the workflow?",
+                    answer: "Asking for a Screenshot"
                 },
                 {
-                    question: "The word \"Okay\" can come across as calm, cold, or even annoyed depending on how it's written.\nHow would you use \"Okay\" in a way that feels warm and supportive? Share an example of a message.",
-                    answer: "A warm and supportive message might be:\n\"Okay, sounds good! Let me take care of that for you\"\nor\n\"Okay! Thanks so much for your patience — I'll get right on it.\"\n\nThe key is adding friendly context, punctuation (like exclamation marks), or softeners that show care."
+                    question: "I'm not cash, but you'll still cheer,\nI work online, I disappear.\nYou earn me, win me, send me out —\nWhat am I that makes folks shout?",
+                    answer: "Gift Card"
                 },
                 {
-                    question: "What's a better way to say: \"You entered the wrong information\"?",
-                    answer: "\"It looks like some of the details might be off. Can you please double-check them?\""
+                    question: "I measure how you spend your time,\nAm I focused? Am I prime?\nNot just busy, but getting things done —\nWhat am I when your score is run?",
+                    answer: "KPI's (SPH?)"
                 },
                 {
-                    question: "When a customer provides helpful info like screenshots or order numbers, what should you do?",
-                    answer: "We should thank them!"
+                    question: "They don't wanna text, \nthey don't wanna email,\nLooking for the digits to dial \nWhich template helps you hold your own?",
+                    answer: "Phone Support"
                 },
                 {
-                    question: "What's wrong with this response? \"It's not my fault, that's just the way it works.\"",
-                    answer: "It deflects responsibility and lacks empathy."
+                    question: "You need a screenshot, clean and tight —\nWith just a drag, I snap it right.\nAnnotate or save on cue —\nWhat tool am I that helps you through?",
+                    answer: "Lightshot Screenshot"
                 },
                 {
-                    question: "Why is it important to validate customers' feelings?",
-                    answer: "It builds trust and shows them they're being heard."
+                    question: "\"Is it coming back?\" the customer cries —\nThis template has the clear replies.\nIt tells them when —\nWhat am I you can send right now?",
+                    answer: "Restock Template"
                 },
                 {
-                    question: "How should you respond when a customer expresses anger, but they're not using abusive language?",
-                    answer: "Be empathetic and acknowledge their emotions."
+                    question: "I tell you when and how to send\nThe thing you bought back to the brand.\nBe it wrong or just regret —\nWhat am I, the clear safety net?",
+                    answer: "Return Policy"
                 },
                 {
-                    question: "True or False: Using emojis can sometimes convey empathy. (elaborate on the chosen option)",
-                    answer: "True - when used sparingly and aligned with brand tone."
+                    question: "The price dropped and now they plea,\nThey want the discount after they bought.\nThis template keeps your tone just right —\nWhat am I that clears the fight?",
+                    answer: "Retroactive Discount Request Template"
                 },
                 {
-                    question: "A customer has been going back and forth with support for days. They write: \"Forget it. I give up.\" You believe you might be able to resolve their issue. What will your response be?",
-                    answer: "\"I completely get how frustrating this must be. If you're open to it, I'd love a chance to fix it properly now.\""
+                    question: "Ding! Ding! Ding! The phone won't sleep —\nThe customer's inbox is way too deep.\nYou calm the storm with words that soothe —\nWhich template helps the mood improve?",
+                    answer: "TMT"
                 },
                 {
-                    question: "What's a more effective apology than \"Sorry if that caused trouble\"?",
-                    answer: "\"I sincerely apologize for the inconvenience you've experienced.\""
+                    question: "I'm not the words, but how they feel —\nToo sharp, too soft, or just ideal?\nMatch me right and they'll respond —\nWhat am I that builds a bond?",
+                    answer: "Preferred Tone"
                 },
                 {
-                    question: "What should you always do when using a template as part of your response to the customer?",
-                    answer: "Personalize it by adding customer-specific details and adapting the tone."
+                    question: "I don't push, I don't shove,\nBut I guide them with a little love.\nIf they say yes, that's quite the feat —\nWhat am I when done after a purchase decision?",
+                    answer: "Upselling"
                 },
                 {
-                    question: "A customer writes, \"You clearly don't value your customers.\" What would your response be?",
-                    answer: "\"I'm really sorry it's come across that way. I know how important this is, and I'm going to do everything I can to help from here.\""
+                    question: "I'm the backbone of your phrase,\nI keep your thoughts from sounding dazed.\nWhat am I that rules them all?",
+                    answer: "Correct Grammar"
                 },
                 {
-                    question: "What should you do if your message includes multiple pieces of info?",
-                    answer: "Break it into short paragraphs for readability."
+                    question: "I don't waste, I don't stall,\nI break the problem down to small.\nI ask a question or escalate\nWith each step, I clear the maze",
+                    answer: "Efficient Troubleshooting"
                 },
                 {
-                    question: "A customer says: \"This is ridiculous. I've explained this twice already.\"\nHow can you acknowledge their frustration while still asking for clarification? Share your response.",
-                    answer: "\"I'm so sorry this has been repetitive - I just want to make sure I fully understand so I can help you resolve this issue.\""
+                    question: "I answer some, but not the rest,\nI leave a gap inside the quest.\nYou think I'm done, but I'm not quite —\nWhat am I that's not polite?",
+                    answer: "Partial Reply"
                 },
                 {
-                    question: "True or False: Empathy should only be shown when a customer is upset.",
-                    answer: "False - empathy should be part of every customer interaction."
+                    question: "Not every word needs something back,\nSometimes silence keeps the track.\nWhen no reply is what feels right —\nWhat am I that skips the fight?",
+                    answer: "Necessary Reply"
                 },
                 {
-                    question: "How can you validate a customer's frustration without confirming a resolution you can't guarantee?",
-                    answer: "By acknowledging the customer's feelings while being transparent about what you can do, without suggesting a specific result."
-                },
-                {
-                    question: "When a customer is excited or happy, what's the empathetic thing to do?",
-                    answer: "Mirror their enthusiasm in your response."
-                },
-                {
-                    question: "Fill in the blank: Empathy helps customers feel like they are ______.",
-                    answer: "Heard and understood."
+                    question: "I'm not for luck or one-time streaks,\nBut steady work or standout peaks.\nWeekly honors, proudly scored —\nWhat am I",
+                    answer: "Agent Rewards"
                 }
             ],
-            // Tile 4 - Knowledge Knoll
-            4: [
-                {
-                    question: "FASHION NOVA: What is the main condition that needs to be met for an order to qualify for 1 business day shipping?",
-                    answer: "The order must be placed by 3 pm ET."
-                },
-                {
-                    question: "IGLOO: How does Igloo handle returns for products purchased from retailers?",
-                    answer: "Igloo products purchased at an authorized retailer are subject to their return policies. Customers need to contact retailers directly for additional information."
-                },
-                {
-                    question: "CALPAK: A customer reaches out asking whether we offer a rewards program. What would your response be?",
-                    answer: "We have a VIT club where you can get first access to sales, a special birthday gift, exclusive events, and more. Plus you also get $5 just for signing up 😉 Here's where you can start your VIT journey: https://calpak.attn.tv/sl/UNlPK-CH"
-                },
-                {
-                    question: "PINKLILY: A customer wants to know if there is a limit amount when using AfterPay on the website.",
-                    answer: "Yes, your total amount due must be between $35 and $1,000 to use AfterPay on pinklily.com."
-                },
-                {
-                    question: "ACME TOOLS: A customer texts in \"Okay\". What are you going to do?",
-                    answer: "Close the conversation."
-                },
-                {
-                    question: "BRILLIANT EARTH: The customer responds with multiple numbers to the journey message. What do you do?",
-                    answer: "We don't send jny temp, we recommend items based on their selection instead."
-                },
-                {
-                    question: "BEIS TRAVEL: A customer reaches out asking if reward points expire. What would your response be?",
-                    answer: "Reward points expire after 6 months of inactivity. Inactivity refers to customers who have not earned or redeemed any points through completing a purchase within the selected time frame."
-                },
-                {
-                    question: "BABYQUIP: Customer texts us and says, ''I would like to do a long-term rental, do you have any discounts for me based on that?\" What would your response be?",
-                    answer: "Yes! If you rent for 9+ days, we'll discount your entire order! (Discount will automatically be applied at checkout.)\n\n1-8 day rental - Daily Rate\n9-16 day rental - 10% off\n17-24 day rental - 20% off\n24+ day rental - 30% off\nPlease note that long term rental discounts do not apply to delivery fees. [from FAQ & Template]"
-                },
-                {
-                    question: "ORU KAYAK: Customer texts us and says, \"What kind of exclusions does your warranty have?\" What would your response be?",
-                    answer: "Our warranty is designed to cover defects in materials and workmanship. However, the warranty doesn't cover products used for commercial or rental purposes; normal wear and tear, including punctures, cuts, and abrasions sustained in normal use; damage caused by accident, neglect, or misuse; damage caused by improper storage maintenance, or handling, etc. You can read more about the exclusions here (link)"
-                },
-                {
-                    question: "CUSTOM GOLD GRILLZ: A customer texts in and says, \"I can't afford them, but I really want them\". What will you do?",
-                    answer: "Depending on the scenario, either send PTE or share our financing options."
-                },
-                {
-                    question: "BONAFIDE: A customer texts in and says, \"Is it possible to change the payment method for my subscription?\". What would your response be?",
-                    answer: "Yes, it is! In order to update your credit card information, first log in to your account here: https://hellobonafide.com/account/login Once you're logged in and on your Subscriptions page, click \"Edit\" under your current billing information. From there, you'll be taken to a page stating that we'll send you an email to update your billing information. Select \"Send Email\" and update your billing preferences accordingly once you receive the email. Let me know how that goes!"
-                },
-                {
-                    question: "MITZI: A customer texts in and says, \"I've been trying to cancel my order. Please help\". What would your response be?",
-                    answer: "I'm sorry to hear that! You can cancel an order within a 72-hour window of order placement so long as the order has not yet been shipped. If your order has already shipped (even if within the 72-hour window), it cannot be canceled and will be treated as a return. To request an order cancellation, please contact our team by emailing us at hello@mitzi.com. Please be sure to include your name, address, Mitzi order number, items to be cancelled, and the reason for your cancellation. You will receive an email detailing if the cancellation request was successful. Please allow up to 72 hours to receive your cancellation confirmation."
-                },
-                {
-                    question: "COMFRT: A customer texts in and says, \"I ordered a pre-order item. Why was my account charged?\". What would your response be?",
-                    answer: "Thank you for reaching out! Please note that when you place a pre-order, you will be charged at the time of purchase. Your placing of a pre-order constitutes your express agreement to the charging of your provided payment method at such time. You can read more about our Pre Order Terms and Conditions here: https://comfrt.com/pages/pre-order-policy#pre-order-and-estimated-shipping-date"
-                },
-                {
-                    question: "CARDBOARD CUT OUT STANDEES: A customer texts in and says, \"Do you have a discount for me? I want to order about 50 of them.\" What would your response be?",
-                    answer: "I can definitely check on this for you. Can you let me know the item type, quantity, and size you're looking to get? Can I also have your e-mail address?"
-                },
-                {
-                    question: "LACOSTE: A customer texts in and says, \"I'm ex-marine, can you offer me a cheaper price?\" What would your response be?",
-                    answer: "Thank you for your service! You can learn more and apply for your discount here: https://hosted-pages.id.me/lacoste-military Let me know how that goes!"
-                },
-                {
-                    question: "CHROME INDUSTRIES: A customer texts in and says, \" I bought a Kadet Sling 3 days ago, and now it's on sale?! Can you refund me the balance?\" What would your response be?",
-                    answer: "If an item you bought on our site goes on sale within 5 days of purchase, we'll refund the price difference to the original form of payment or with credit. Price adjustments don't stack with promotional codes - we'll provide a partial refund. A receipt must be present to honor a price adjustment. Final sale items aren't eligible for a price adjustment and any items adjusted to final sale prices can't be returned. Please reach out to us at support@chromeindustries.com with your order number and we'll sort out any adjustments."
-                },
-                {
-                    question: "OPEN FARM: A customer texts in and says, \" I want to check out a store with my dog to see if they offer samples before I buy, he's very picky. Is there one near me?\" What steps are you going to take to provide a resolution?",
-                    answer: "Search our templates and use the appropriate one: \"Do you have samples?...\" We can also ask for their zip code to narrow down the search for them."
-                },
-                {
-                    question: "STEVE MADDEN: A customer texts in and says, \"I'm trying to use my gift card, but it won't let me\". What steps are you going to take to provide a resolution?",
-                    answer: "We should check if it's a physical or digital gift card. Physical Gift cards may be used at Steve Madden retail stores (only stores in the USA, excluding Colorado, Utah, and Savannah, GA locations). Digital Gift Cards that can be used only at stevemadden.com."
-                },
-                {
-                    question: "BRAUN: A customer texts in and says, \"Why am I being charged for tax? I thought you didn't charge that.\" What steps are you going to take to provide a resolution?",
-                    answer: "We need to ask the customer in what state the item is going to be delivered. Sales tax is added for taxable items in deliveries to the following states: California, Illinois, New Jersey, New York, Texas, Washington, Florida, and Pennsylvania."
-                },
-                {
-                    question: "HAPPIEST BABY: A customer texts in and says, \"Will you restock the Lola Crib?\" What would your response be?",
-                    answer: "I'm so sorry, but the Lola Crib is no longer available. Do you need help with anything else or have any questions about our other products?"
-                }
-            ],
-            // Tile 7 - Escalation Ave
-            7: [
-                {
-                    question: "When should you escalate a conversation?",
-                    answer: "When the issue is outside your scope, technical, or unresolved after troubleshooting, or when the notes instruct you to do so immediately"
-                },
-                {
-                    question: "How does our research process help us reduce escalations?",
-                    answer: "Allows us to check all of the information at our disposal, which majority of the time will yield the correct response to the customer."
-                },
-                {
-                    question: "How would you handle a customer wanting to make a return after the deadline? They are aware of the return policy deadline but they insist that you double-check with the team.",
-                    answer: "Politely explain that our return policy deadlines do not leave much room for exceptions and apologize. Since the customer insists, we can proceed to escalate or send to CS per the Notes"
-                },
-                {
-                    question: "When can you send to CS even if you have escalated?",
-                    answer: "When it has been over 2 business days without a response to the escalation, and the cx checks in. But only if there are no notes preventing us from sending to CS."
-                },
-                {
-                    question: "Why do we include the information we do in escalation notes?",
-                    answer: "To make it easier for the client to resolve the customer's issue or inquiry"
-                },
-                {
-                    question: "What does \"escalation\" mean in a Concierge context?",
-                    answer: "It is referring the cx's inquiry to customer support directly through the UI, and having the customer receive a response in the SMS conversation"
-                },
-                {
-                    question: "If a customer requests to speak to a manager but hasn't explained the issue yet, what should you do first?",
-                    answer: "Troubleshoot: Try to understand what the issue is and offer assistance if possible."
-                },
-                {
-                    question: "What's a good phrase to use when informing a customer you're escalating their issue?",
-                    answer: "\"Thank you for the information. Let me check with the team and I will get back to you as soon as I get a response. Please hang tight.\""
-                },
-                {
-                    question: "What are the 2 types of escalations we have?",
-                    answer: "Pre-purchase and post-purchase"
-                },
-                {
-                    question: "What are the two scenarios where agents can de-escalate an issue?",
-                    answer: "1) They can de-esc and re-esc when the customer shared vital info for the resolution\n2)  They can de-esc if the customer says their issue has been resolved"
-                },
-                {
-                    question: "\"I returned something, but the tracking shows it's stuck. Will I still get my refund on time?\" How will you provide a resolution to this?",
-                    answer: "Advise the customer to contact the courier first. If no info is provided, we can escalate or send to CS based on the notes"
-                },
-                {
-                    question: "\"I returned the wrong item by mistake — what do I do now?\" How will you provide a resolution to this?",
-                    answer: "You can escalate or send to CS according to the brand preference."
-                },
-                {
-                    question: "What's a good message to use when a customer insists on escalation but you're still gathering the needed info?",
-                    answer: "\"I understand your concern, and I want to make sure we handle this properly. To avoid delays or confusion, I just need a few more details so the team has the full picture. Can I please have your ...\""
-                },
-                {
-                    question: "What should you do if a customer is angry but hasn't provided any actionable details for an escalation?",
-                    answer: "Emphasize and acknowledge their frustration, then ask again for specifics and what the issue is that they're facing."
-                },
-                {
-                    question: "A customer bought something and is wondering if they can get a replacement for a part, but the brand doesn't sell parts on the website. What steps are you going to take and will you escalate?",
-                    answer: "We'd check notes and templates for replacement information, and if none is available, we'd escalate."
-                },
-                {
-                    question: "What would you do if you found a resolution, but the agent before you has escalated the issue?",
-                    answer: "We'd provide the answer using a phrase like \"I just heard back from the team...\" and we'd de-escalate after."
-                },
-                {
-                    question: "The customer says they were charged twice, and both charges have been posted. They provide screenshots of the bank notifications. What are your next steps?",
-                    answer: "Ask for email address and order number (s) if available, and ESC or send to CS per the notes."
-                },
-                {
-                    question: "What should you do if a customer provides additional information required to resolve the escalated issue?",
-                    answer: "We copy the original escalation note, de-escalate, and compose a new escalation note with both the original and the new information the customer provided."
-                },
-                {
-                    question: "A customer texts in that they have not received an order confirmation email, and they want to know their order number. They confirm they have already checked their spam & promo folders. How do you proceed?",
-                    answer: "Shopify Brands: If we see an order, we can check for the order number, but if we don't see an order, we will check if the charge is pending or posted. If it's posted, we need to ask for their email address and escalate.\n\nNon-Shopify Brands: If we see an order, we will gather the email address and escalate. If we don't see an order, we will check if the charge is pending or posted. If it's posted, we will escalate with their email address."
-                },
-                {
-                    question: "Do you need to gather customer information when escalating a pre-purchase issue?",
-                    answer: "Yes, if the brand notes/templates require us to do so, or if the issue involves an account-related concern, in which case we ask for the customer's email."
-                }
-            ],
+
+
             // Tile 8 - Riddleton Place
             8: [
                 {
@@ -2427,89 +2667,7 @@ class GameView {
                     answer: "URL Trick"
                 }
             ],
-            // Tile 11 - Sale-A-Vie Blvd
-            11: [
-                {
-                    question: "A customer says, \"What are your most popular products?\" What collection would you send?",
-                    answer: "Best-Selling (or \"Most Popular\")."
-                },
-                {
-                    question: "A customer says, \"I am trying to buy a ring for my daughter, but all the natural diamonds are very expensive. Do you have any recommendations?\". What question are you going to ask to narrow down options for them, and what would you recommend?",
-                    answer: "Ask for the customer's budget and suggest a lab-grown diamond that is cheaper than natural diamonds."
-                },
-                {
-                    question: "A customer says, \"I want a gift for someone who loves fitness but already has all the gear.\"\nWhat would you recommend?",
-                    answer: "Find something that is purchased continuously, such as fitness clothes, personalized items, possibly a supplement subscription or bundle."
-                },
-                {
-                    question: "Describe the Funnel Method process.",
-                    answer: "The Funnel Method is used when a customer is looking for a general product (e.g., \"a blue T-shirt\").\nWe start broad with a general category link and ask targeted follow-up questions about preferences.\nWe then refine the options based on their responses and share filtered links or specific product recommendations based on their input."
-                },
-                {
-                    question: "A customer says, \"I'm buying a neck pillow for travel, anything else I shouldn't forget?\" What can you suggest/recommend?",
-                    answer: "We can suggest a travel-size skincare set., sleeping mask, earplugs, etc."
-                },
-                {
-                    question: "A customer is asking you to provide different suggestions for purses. How would you approach this?",
-                    answer: "We probe for specific preferences, occasion etc. and send suggestions depending on their answers."
-                },
-                {
-                    question: "A customer seems overwhelmed by shoe choices. What's a strategic way to narrow down the options?",
-                    answer: "Use the Funnel Method! Start by highlighting 1–2 bestseller shoes or bestseller collection and ask specific follow-up questions like: \"Are you looking for sandals or closed shoes?\", \"What's your budget?\", etc."
-                },
-                {
-                    question: "A customer says, \"I need something breathable, not synthetic, but also cute enough to wear to brunch.\"\nList at least 2 filter keywords that you are going to use.",
-                    answer: "Linen, cotton, lightweight, natural, etc."
-                },
-                {
-                    question: "A customer says, \"I want something dressy, but I'm super short and don't want to drown in fabric.\"\nList at least 2 filter keywords that you are going to use.",
-                    answer: "Petite, midi length, wrap style, etc."
-                },
-                {
-                    question: "A customer says, \"My teen's starting skincare, they have sensitive skin - nothing harsh, please.\" List at least 2 filter keywords that you are going to use.",
-                    answer: "Gentle/sensitive, fragrance-free, dermatologist-approved, non-comedogenic, hypoallergenic, etc."
-                },
-                {
-                    question: "The customer wants to purchase a certain product, but they sound hesitant, and they asked you if the product is actually good or not? What's a good strategy to help the customer trust the brand/product?",
-                    answer: "Assure them that the we always do our best to provide the best quality, share some details about the product, share customer reviews if possible"
-                },
-                {
-                    question: "A customer says, \"I love comfort, and I want to buy a Tranquil hoodie with sweat pants for my kiddo's birthday. Her size is small, and I'd like the color cement.\"\nMake a cart for this customer.",
-                    answer: "Create a Cart"
-                },
-                {
-                    question: "A customer says, \"I want a lamp under $190 for my 11-inch entryway table, what options does Mitzi have?\" What link would you send?",
-                    answer: "https://mitzi.com/collections/table-lamp?sort_by=manual&filter.v.price.gte=0.00&filter.v.price.lte=190.00&filter.p.m.custom.width=Medium+%286%22+to+12%22%29&filter.p.m.custom.rooms=gid%3A%2F%2Fshopify%2FMetaobject%2F84335263896"
-                },
-                {
-                    question: "\"I want a shampoo for damaged hair from Kitsch.\" List 2 options you can recommend and why you would recommend them.",
-                    answer: "1) What about our Coconut Oil Shampoo Bar for Dry Damaged Hair here - https://www.mykitsch.com/products/coconut-oil-deep-moisturizing-solid-shampoo-bar?_pos=1&_sid=c997e9ede&_ss=r\n\nIt comes infused with nourishing coconut oil to help hydrate and soften dry, damaged strands.\n\n2) We also have our Rice Water Shampoo Bar for Hair Growth here - https://www.mykitsch.com/products/rice-water-protein-shampoo-bar-strengthening\n\nThe rice water helps to repair damaged hair follicles & prevent split ends."
-                },
-                {
-                    question: "A customer says, \"I want a nice t-shirt for a birthday, but no idea what.\" What are 3 follow-up questions you can ask to narrow down the options for them?",
-                    answer: "Is the shirt for themselves or a gift, what is their budget, what is their style preference, what is the size, etc."
-                },
-                {
-                    question: "The customer is committed to buying creme-colored pants! List at least 2 items that would complement the pants.",
-                    answer: "Muted earth tone shirt, belt, scarf, jacket, etc."
-                },
-                {
-                    question: "You get this message from an 'Equestrian Collections' customer: \"I need a black medium Blanket Liner for my horse.\" Share at least 2 recommendations.",
-                    answer: "1) https://www.equestriancollections.com/products/tough-1-softfleece-blanket-liner?_pos=1&_fid=fe03fa06b&_ss=c&variant=45131201937561\n2) https://www.equestriancollections.com/products/tough-1-softfleece-blanket-linersheet-with-adjustable-leg-straps?_pos=4&_fid=fe03fa06b&_ss=c&variant=45129645654169"
-                },
-                {
-                    question: "You get this message from an 'Open Farm' customer: \"My kitten is obsessed with both chicken and salmon! What options do you have?\". What would you respond?",
-                    answer: "You can explore our full range of Kitten Chicken & Salmon recipes, including dry food, wet food, and broth here: https://openfarmpet.com/collections/cat-food?protein=chicken,salmon&lifestage=kitten&sort_by=best-selling\n\nIf you're looking for something extra nourishing, our Kitten Chicken & Salmon Pâté is a great choice: https://openfarmpet.com/products/kitten-chicken-salmon-pate-recipe-for-cats\nIt is created to give growing kittens the building blocks they need to grow healthy. This velvety smooth pâté is crafted with a protein-packed blend of wild-caught salmon, humanely-raised chicken, and chicken liver."
-                },
-                {
-                    question: "You get this message from a 'Green Pan' customer: \"I want to get rid of my old frypans. What options do I have for aluminum frypans?\" What would you respond?",
-                    answer: "You can browse our full selection of aluminum frypans here: https://www.greenpan.us/collections/frypans?pf_t_material=material%3Aaluminum I'd recommend our limited edition Stanley Tucci™ Ceramic Nonstick 12\"\" Frypan - https://www.greenpan.us/collections/frypans/products/stanley-tucci%E2%84%A2-ceramic-nonstick-12-frypan-with-lid-calabrian-fig\nIt has the same advanced coating as the stainless steel options, but the aluminium makes it a lighter and more affordable option. Let me know what you think!"
-                },
-                {
-                    question: "You get this message from a 'Jaanuu' customer: \"I desperately need some new scrubs\". Can you please recommend some Women's sets for me?\". What would you respond?",
-                    answer: "I'm happy to recommend a few great options! We have our The Alex Essential Scrub Set in Sage here, it is great for a shape-defining look - https://www.jaanuu.com/pages/scrub-sets-layering/the-alex-essential-scrub-set?color=Sage\nThe Sage is also one of our new colors, and it's already trending.\nI would also recommend our The UltraLITE™ Style Scrub Set here - https://www.jaanuu.com/pages/scrub-sets-layering/the-ultralite-style-scrub-set?color=Midnight%20Navy\nIt is engineered for minimal weight and maximum breathability."
-                }
-            ],
+
             // Tile 14 - Knowledge Square
             14: [
                 {
@@ -2676,92 +2834,12 @@ class GameView {
                     answer: "Check to see what they ordered if the information is available in the UI. If not, ask them to tell you what product they purchased. Go to the website to double-check the product details."
                 }
             ],
-            // Tile 19 - Inquiry Inspections
-            19: [
-                {
-                    question: "\"This isn't working.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "I'm sorry to hear that! Could you tell me what specific feature or action isn't working as expected?\n\n- A feature or button is unresponsive (e.g. \"I clicked and nothing happened.\")\n- The product isn't performing as promised (e.g. \"The serum doesn't absorb.\")\n- The discount code didn't apply\n- An error occurred, but the customer isn't describing it"
-                },
-                {
-                    question: "\"Where's the rest of it?\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "Can you clarify what you're missing. Are you referring to your order or something else?\n\n- They received part of a bundle, but not all items\n- They expected additional items (e.g., free gift)\n- They think the product is incomplete (e.g., missing straps or accessories)\n- It was a split shipment, and the rest hasn't arrived yet"
-                },
-                {
-                    question: "\"The numbers are wrong.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "I'm sorry about that. Can you please tell me what numbers you're referring to? Are you talking about the pricing in your cart?\n\n- The discount didn't apply correctly at checkout\n- Tax or shipping costs were unexpected\n- Order quantity changed or duplicated\n- Sizing on a garment/item is off compared to what they expected"
-                },
-                {
-                    question: "\"The button is not clicking.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "Thanks for flagging that! Are you referring to the checkout button? Any error messages or specific step it gets stuck on?\n\n- A form or \"Apply\" button is unresponsive (technical error)\n- The add to cart button isn't working\n- They're clicking the wrong thing"
-                },
-                {
-                    question: "\"Missing\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "I'm sorry you're missing something. Is it something from your order? Can you let me know what's missing and how many items you received so far?\n\n- One or more items didn't arrive in the box\n- A promised gift or sample wasn't included\n- The package says delivered, but the customer didn't receive it\n- A part of the website/product page is no longer visible"
-                },
-                {
-                    question: "\"This looks different.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "I'm sorry for the inconvenience. Just to be sure we're on the same page, are you referring to the item you received or how it appears online?\n\n- The product's packaging or design changed\n- They're comparing an item to a previous order and noticing a difference\n- The color or size seems off from the photo they saw online\n- They're worried they received the wrong version or a fake"
-                },
-                {
-                    question: "\"It's not applying.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "Are you referring to a discount code, gift card, or something else? I'll help you get this sorted.\n\n- A promo or discount code isn't working at checkout\n- A gift card or store credit isn't being accepted\n- A product filter isn't applying"
-                },
-                {
-                    question: "\"I want to fix this.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "Absolutely! I'm happy to help. Can you tell me more about what you're trying to fix so I can walk you through it?\n\n- They made a mistake on the order\n- They want to exchange or return the product\n- The product they received is broken/damaged"
-                },
-                {
-                    question: "\"This is wrong.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "Sorry to hear that you're upset! Can you let me know what seems wrong — the product, the price, or something else?\n\n- They received the incorrect product\n- Something about the product doesn't match the description\n- Their personal info was used or shown incorrectly\n- A billing or charge doesn't match expectations"
-                },
-                {
-                    question: "\"Why is this happening?\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "I'd love to take a closer look — could you tell me a bit more about what you're seeing or what you expected instead?\n\n- They are receiving too many promotional messages\n- They want an actual explanation, not just a fix\n- They're worried it will happen again if unresolved\n- They've contacted support before and feel ignored"
-                },
-                {
-                    question: "\"I can't get in.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "I'm sorry you're having trouble with getting in. Let's get you back in! Are you having trouble with our website, your login, password reset, or something else?\n\n- Login credentials aren't working\n- They're locked out or forgot their password\n- They expected access to something (e.g. early sale)"
-                },
-                {
-                    question: "\"This isn't the same.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "I'm sorry you didn't receive what you wanted. Can you let me know what you expected and what you received instead?\n\n- They've bought this product before and it's changed\n- The product doesn't look the same on the website\n- They think they received the wrong item or a knockoff\n- They believe they were promised something else\n- A recent update (product, UI, content) caught them off guard"
-                },
-                {
-                    question: "\"It's not updating.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "I'm sorry for the inconvenience. Are you referring to your order status, shipping info, or something else not updating?\n\n- They made a change and it didn't save\n- A live status (e.g. tracking or order info) hasn't changed\n- The website isn't refreshing with new info"
-                },
-                {
-                    question: "\"Nothing's happening.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "I'm here to help! Could you tell me what you're trying to do and what's showing on your screen?\n\n- They made a change (e.g. cart, profile, subscription) and it didn't save\n- A live status (e.g. tracking or order info) hasn't changed\n- The website isn't refreshing with new info\n- They're expecting real-time updates that aren't live yet\n- Their changes are stuck due to a backend or caching issue"
-                },
-                {
-                    question: "\"I don't see it.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "Just to make sure I understand, are you looking for something in your account, email, or package?\n\n- They can't find a discount or promo code\n- They can't see their order confirmation or tracking info\n- They can't see a product on the site\n- They can't see a refund or store credit"
-                },
-                {
-                    question: "\"Where is it?\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "I'm happy to help! Just to confirm, are you asking about your package, tracking info, a certain product or something else?\n\n- They're referring to a missing item from a multi-item order\n- They're looking for a product they saw earlier (i.e., something in their cart went missing)\n- They're looking for a discount or promo code"
-                },
-                {
-                    question: "\"I thought it came with something else?\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "Thanks for checking in. Could you let me know what item you are referring to? and what you were expecting it to include so I can take a closer look for you?\n\n- They assumed the product included accessories or components\n- They expected additional features or functionality\n- They believe they bought a bundle but only received one item"
-                },
-                {
-                    question: "\"This doesn't match what I saw earlier.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "I'm sorry something is not matching. Are you referring to product details, pricing, or something else that looks different now?\n\n- The price has changed\n- The product listing was updated\n- Their order summary looks different\n- The discount or offer has disappeared"
-                },
-                {
-                    question: "\"Is this real?\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "I understand your concern. Can you let me know what specifically you're questioning - the product authenticity, website legitimacy, or something else? I'm here to help clarify.\n\n- They received a weird-looking or damaged item\n- They think a charge or email might be a scam\n- They're confused by a sudden price drop\n- They're unsure if a product is authentic"
-                },
-                {
-                    question: "\"I never got a follow-up or anything.\"\n\nList at least 2 things the customer might be referring to.",
-                    answer: "Sorry about that. Was this a follow-up about an order, a return, or something else we were helping with? Did you call or email us about your concern?\n\n- They were expecting an email update\n- They were told a package or order update would be provided\n- They were waiting on a refund or credit confirmation"
-                }
-            ],
 
-            // Tile 21 - Coupon Court
-            21: [
+
+            // Tile 21 - Moonlight Response Station (No questions - this is a Response Station, not a Question tile)
+            21: [],
+            // Tile 22 - Coupon Court
+            22: [
                 {
                     question: "A customer says they never received their referral reward. What steps will you take to provide a resolution?",
                     answer: "Ask them to check their spam and promo folders, and to check if the reward is in their account. Check what the conditions are for them to get a referral reward, and if they were fulfilled. If the answer is yes to all of these, then we gather the necessary information and escalate if notes permit."
@@ -2842,89 +2920,6 @@ class GameView {
                     question: "A customer texts in and says, \"The discount worked, but didn't apply to the full order.\" What steps would you take to provide a resolution?",
                     answer: "Sometimes a code will work on the eligible items in the order, and not apply to the ineligible ones. We need to cross-check for any exclusions. If the code didn't apply to all items because of the exclusions, we would need to educate the customer. If the code isn't working as intended, we need to escalate if notes permit us to do so."
                 }
-            ],
-            // Tile 22 - Resolution Road
-            22: [
-                {
-                    question: "What are the first most important steps to do before responding to a new customer message?",
-                    answer: "Read the customer's message and determine if it warrants a response. If it does, back-read and check the notes/templates."
-                },
-                {
-                    question: "How would you research in case you don't know the answer to a customer's question?",
-                    answer: "Backread, notes + templates, website, website-related sources, Google search"
-                },
-                {
-                    question: "How long should you ideally take to respond to a customer, on average?",
-                    answer: "2 minutes or less."
-                },
-                {
-                    question: "What's the first step to take when a customer issue is unclear?",
-                    answer: "If the issue seems relevant to us, ask clarifying questions to gather all necessary details before providing a resolution, and use the \"if-so\" method if applicable."
-                },
-                {
-                    question: "What phrase can we use if AI unexpectedly reveals itself to a customer during a conversation?",
-                    answer: "\"I apologize for the confusion caused. The previous messages you received were automated, however I'm here now to provide you with personalized assistance and make sure your concerns are addressed properly.\""
-                },
-                {
-                    question: "A customer is venting emotionally about their bad day and barely mentions the actual issue they are contacting us about. What's your response?",
-                    answer: "Thanks for reaching out - I'm really sorry to hear you've been having such a rough day. I'm here to help, can you please tell me more about the issue you're having?"
-                },
-                {
-                    question: "How do you know when it's time to send a conversation closer?",
-                    answer: "The issue is resolved, and the customer confirmed it."
-                },
-                {
-                    question: "What's the risk of closing a chat that shouldn't be closed yet?",
-                    answer: "We're abandoning the customer, and they may feel ignored or unsupported."
-                },
-                {
-                    question: "What should you do if the customer solution involves steps outside their comfort zone (e.g., tech setup for an elderly individual)?",
-                    answer: "Offer to guide them step by step by providing links to help articles on the website, screenshot links, or, if applicable, a mock cart link."
-                },
-                {
-                    question: "If you suspect a customer's issue is user error, what's a tactful way to handle it?",
-                    answer: "Gently explain how the feature works and guide them in using it properly without assigning blame."
-                },
-                {
-                    question: "Another agent gave the wrong info. Do you correct it openly or discreetly? Elaborate.",
-                    answer: "Be discreet - do not let the customer know they are interacting with multiple agents. Apologize for the confusion, own the mistake, and act as one person."
-                },
-                {
-                    question: "The customer texts in saying they've waited \"months\" for a resolution. What steps are you going to take?",
-                    answer: "Apologize and empathize. Troubleshoot to identify the issue and determine if you can provide a resolution. Check how and where the customer reached out to us, and confirm whether they received any response."
-                },
-                {
-                    question: "The customer uses technical words in their inquiry that you're not familiar with. What will you do?",
-                    answer: "Research the terms either on the website or on Google to familiarize yourself with them."
-                },
-                {
-                    question: "A customer texts in that they are struggling to redeem their points and asks for our help. What steps are you going to take?",
-                    answer: "Ask if they are logged into their account, send the appropriate template if available, or check the website for instructions."
-                },
-                {
-                    question: "A customer threatens to go public on social media if their issue isn't resolved today (It's a Saturday) - but the escalation response will likely only come during the week. What will you do?",
-                    answer: "Apologize and empathize. Let them know about the weekend escalations policy."
-                },
-                {
-                    question: "The customer texts you and provides a complaint about something we or the brand can't do anything about. What do you do?",
-                    answer: "Apologize and let them know we will pass on the feedback to the team for future improvement."
-                },
-                {
-                    question: "The customer texted us to ask why we don't offer a certain payment option (e.g., Affirm). What will you do?",
-                    answer: "Apologize and provide them with the available payment options, and check if they have access to any of the ones we do accept. We would also thank them for the feedback and let them know we will pass it to the team."
-                },
-                {
-                    question: "The customer texts us saying they can't see the \"add to cart\" option on the product page. What is likely going on? Give 2 options.",
-                    answer: "1) Technical issue\n2) The product is out of stock"
-                },
-                {
-                    question: "How can we check if the item the customer ordered is a preorder, and when it is supposed to ship?",
-                    answer: "We need to check the order details section if available, to see if the product is noted as a pre-order, and whether there is an estimated ship date listed there.\nIf not, get their info and ESC to get an update or send to CS depending on brand notes."
-                },
-                {
-                    question: "A customer tells us they are struggling to place an order on the website. They are 70 years old and not very good with technology. What are three solutions you can provide?",
-                    answer: "1) If the brand allows phone orders, send them the number to call.\n2) If it's a Shopify brand, offer to create a cart link for them\n3) If it's a non-Shopify brand, guide them through the online ordering process step by step and provide screenshot links where appropriate."
-                }
             ]
         };
     }
@@ -2955,9 +2950,9 @@ class GameView {
             "\"Release Roulette\"\nYou missed the brand updates again. Lose 1 turn to catch up.",
             "\"Shift Happens\"\nYou saved the day by picking up a released shift. You get 5 points.",
             "\"Typo Hunter\"\nYou caught a rogue typo in the docs. 🕵️‍♀️ Collect 1 Support Buck.",
-            "\"Double-Down\"\nWhen landing on a question, pay double the price and get a chance for double the points.",
+            "\"Double-Down\"\nGet double points if you answer the next question correctly.",
             "\"Auto-Wrong Response\"\nYour auto-reply caused a grammar markdown. Go to Jail.",
-            "\"Trivia Trap\"\nThe other team answers a bonus question — if they pass, you gain 4 points and if they fail, you lose 4 points.",
+            "\"Trivia Trap\"\nNext time the other team answers a question — if they pass, you gain 4 points, and if they fail, you lose 4 points.",
             "\"Secret Shopper Slay\"\nYou passed the secret support test. Collect 2 Support Bucks.",
             "\"Lunch & Learn Luminary\"\nYou corrected the previous agent's error, and the cx's issue has been resolved. Move ahead 1 space + gain 1 Support Buck.",
             "\"Wrong Way Wanda\"\nYou closed the wrong chat. Back it up — go back 2 spaces.",
@@ -2965,7 +2960,7 @@ class GameView {
             "\"Inbox Zero Hero\"\nCleared your queue by lunch. Collect 2 Support Bucks.",
             "\"Hyperlink Horror\"\nYou shared the wrong link. Go to Jail.",
             "\"Shoutout Stunner\"\nYou have the best performing KPIs for the week! 🌟 You earn a Get Out of Jail Card.",
-            "\"Calm in the Chaos\"\nYour responses soothed worried users during a widespread Fashion Nova shipping delay. Gain 1 Support Buck + gain the points of your next category even if you get the answer wrong.",
+            "\"Calm in the Chaos\"\nYour responses soothed worried users during a widespread Fashion Nova shipping delay. Gain 3 Support Bucks + gain the points next time you land on an unclaimed tile even if you get the answer wrong.",
             "\"UI Glow-Up\"\nThe UI got an upgrade! ✨ Move ahead 2 spaces.",
             "\"Exec-ellent Summary\"\nThe brand loved how helpful your escalation notes were. Advance 3 spaces.",
             "\"Agony Aunt\"\nCustomer sends a valid inquiry but also includes a lot of personal distress. Skip next turn to solve.",
@@ -2984,6 +2979,64 @@ class GameView {
         const selectedCard = surpriseCards[randomIndex];
         
         console.log(`Selected surprise card ${randomIndex + 1}/${surpriseCards.length}: ${selectedCard.split('\n')[0]}`);
+        
+        return selectedCard;
+    }
+
+    getMysteryMashCardText(cardIndex = null) {
+        const mysteryMashCards = [
+            "\"Oops! Customer Escalation\"\nLose 2 points while you de-escalate the situation.",
+            "\"Five-Star Review!\"\nYou've earned a Get out of Jail Card.",
+            "\"You Nailed a Tough Call\"\nEarn 3 bonus points for empathy and resolution!",
+            "\"Caught Using Jargon 😬\"\nMove back 1 space and lose 1 Support Buck.",
+            "\"You Handled a Bug Report Perfectly!\"\nSteal 3 points from the other team.",
+            "\"Macro Mayhem\"\nSwap positions with the other team.",
+            "\"Process Update!\"\nSkip your next turn while you attend a (pretend) training session.",
+            "\"Snack Break!\"\nYou left the UI without going unavailable, lose 6 Support Bucks.",
+            "\"Tech Glitch!\"\nYou're frozen — skip your next turn and mime your reaction.",
+            "\"Manager's Shout-Out!\"\nEveryone cheers for your team — collect 2 points!",
+            "\"Flash Response\"\nYou responded at super speed, you earn a Time Travel Card!",
+            "\"Shift Happens\"\nYou saved the day by picking up a released shift. You get 2 points.",
+            "\"Free BOGO\"\nYou earned a Double Down card for free!",
+            "\"Lunch & Learn Luminary\"\nYou corrected the previous agent's error, and the cx's issue has been resolved. Move ahead 1 space + gain 1 Support Buck.",
+            "\"Crisis Handler Extraordinaire\"\nComplaint went viral, but you stayed cool. Gain 2 Support Bucks.",
+            "\"Hyperlink Horror\"\nYou shared the wrong link. Go to Jail.",
+            "\"Calm in the Chaos\"\nYour responses soothed worried users during a widespread Fashion Nova shipping delay - gain 6 Support Bucks!",
+            "\"Exec-ellent Summary\"\nThe brand loved how helpful your escalation notes were. Advance 3 spaces.",
+            "\"Sleep Mode Activated\"\nEnd-of-day exhaustion has hit. Skip your next turn.",
+            "\"Thanks-a-Latte!\"\nA grateful customer sends you a thank-you note and a digital coffee. ☕ Move ahead 2 spaces.",
+            "\"Oopsie-Daisy Chain\"\nYou sent a double text and didn't acknowledge this in the second message. Go back 1 space.",
+            "\"Chat Champ\"\nYou solved your first chat like a legend. 💪 Collect 5 Support Buck.",
+            "\"Feature Sneak Attack\"\nNew CALPAK feature launched without telling you. Miss your next turn.",
+            "\"Outage Outrage\"\nYou lost power during a shift. Lose 2 points.",
+            "\"Bug Whisperer\"\nYou found a bug before it bit. 🐛 Move ahead 3 spaces.",
+            "\"Audit Ace\"\nRandom Event audit? You're flawless. ✨ Gain 2 points.",
+            "\"Ctrl-Alt-Duh\"\nYour keyboard staged a protest. Skip your next turn.",
+            "\"VIP Vibes\"\nA VIP preferred your response to another agent's. Take 2 Support Bucks from the other team.",
+            "\"Escalation? Never Heard of Her\"\nYou solved a tough one solo. Advance 3 spaces.",
+            "\"Money Bag\"\nYou got a QA Streak, you earn a Money Back Guarantee Card",
+            "\"Typo Hunter\"\nYou caught a rogue typo in the docs. 🕵️‍♀️ Collect 4 Support Buck.",
+            "\"Auto-Wrong Response\"\nYour auto-reply caused a grammar markdown. Go to Jail.",
+            "\"Secret Shopper Slay\"\nYou passed the secret support test. Collect 8 Support Bucks.",
+            "\"Wrong Way Wanda\"\nYou closed the wrong chat. Back it up — go back 2 spaces.",
+            "\"Inbox Zero Hero\"\nCleared your queue by lunch. Collect 7 Support Bucks.",
+            "\"Shoutout Stunner\"\nYou have the best performing KPIs for the week! 🌟 You earn a Get Out of Jail Card.",
+            "\"UI Glow-Up\"\nThe UI got an upgrade! ✨ Move ahead 2 spaces.",
+            "\"Agony Aunt\"\nCustomer sends a valid inquiry but also includes a lot of personal distress. Skip next turn to solve.",
+            "\"Flawless cart\"\nYou created a cart like a personal shopper. You earn a Money Back Guarantee Card!"
+        ];
+        
+        // If specific card index provided (from server), use that
+        if (cardIndex !== null && cardIndex >= 0 && cardIndex < mysteryMashCards.length) {
+            console.log(`Using server-specified mystery mash card ${cardIndex + 1}/${mysteryMashCards.length}: ${mysteryMashCards[cardIndex].split('\n')[0]}`);
+            return mysteryMashCards[cardIndex];
+        }
+        
+        // Otherwise, randomly select one mystery mash card
+        const randomIndex = Math.floor(Math.random() * mysteryMashCards.length);
+        const selectedCard = mysteryMashCards[randomIndex];
+        
+        console.log(`Selected mystery mash card ${randomIndex + 1}/${mysteryMashCards.length}: ${selectedCard.split('\n')[0]}`);
         
         return selectedCard;
     }
@@ -3081,20 +3134,46 @@ class GameView {
             const questionIndex = parts[1] ? parseInt(parts[1]) : 0; // Default to 0 if not provided
             this.showCard('QUESTION', tileId, 'Question Card', questionIndex);
             return true;
+        } else if (eventMsg.includes('SHOW_QUESTION_CARD_STEAL:')) {
+            // Extract tile ID and question index from server message for steal opportunity
+            // Format: SHOW_QUESTION_CARD_STEAL:tileId:questionIndex
+            const parts = eventMsg.split('SHOW_QUESTION_CARD_STEAL:')[1].split(':');
+            const tileId = parts[0];
+            const questionIndex = parts[1] ? parseInt(parts[1]) : 0; // Default to 0 if not provided
+            this.showCard('QUESTION_STEAL', tileId, 'Steal Opportunity', questionIndex);
+            return true;
+        } else if (eventMsg.includes('SHOW_MAINTENANCE_FEE:')) {
+            // Extract tile position and owned stations from server message for maintenance fee
+            // Format: SHOW_MAINTENANCE_FEE:tilePosition:ownedStations
+            const parts = eventMsg.split('SHOW_MAINTENANCE_FEE:')[1].split(':');
+            const tilePosition = parts[0];
+            const ownedStations = parts[1] ? parseInt(parts[1]) : 0;
+            this.showMaintenanceFeeModal(tilePosition, ownedStations);
+            return true;
+        } else if (eventMsg.includes('SHOW_FLASH_ROUND_INTRO:')) {
+            // Extract tile position from server message for flash round intro
+            // Format: SHOW_FLASH_ROUND_INTRO:tilePosition
+            const tilePosition = eventMsg.split('SHOW_FLASH_ROUND_INTRO:')[1];
+            console.log(`⚡ Flash Round detected! Tile position: ${tilePosition}`);
+            this.showFlashRoundIntroModal(tilePosition);
+            return true;
         } else if (eventMsg.includes('SHOW_SURPRISE_CARD:')) {
-            // Extract surprise card index from server message
-            // Format: SHOW_SURPRISE_CARD:surpriseIndex OR SHOW_SURPRISE_CARD:actionText (backwards compatible)
+            // Extract surprise card index and tile position from server message
+            // Format: SHOW_SURPRISE_CARD:surpriseIndex:tilePosition OR SHOW_SURPRISE_CARD:surpriseIndex (backwards compatible)
             const messagePart = eventMsg.split('SHOW_SURPRISE_CARD:')[1];
+            const parts = messagePart.split(':');
             
             // Check if the message contains a numeric index (new format)
-            const surpriseIndex = parseInt(messagePart);
+            const surpriseIndex = parseInt(parts[0]);
+            const tilePosition = parts[1] ? parseInt(parts[1]) : null;
+            
             if (!isNaN(surpriseIndex)) {
-                // New format with specific index
-                this.showCard('SURPRISE', null, 'Surprise Card', null, surpriseIndex);
-                console.log(`🃏 Showing surprise card with server-specified index: ${surpriseIndex}`);
+                // New format with specific index and tile position
+                this.showCard('SURPRISE', tilePosition, 'Surprise Card', null, surpriseIndex);
+                console.log(`🃏 Showing surprise card with server-specified index: ${surpriseIndex}, tile position: ${tilePosition}`);
                 
                 // Check if this is an inventory-worthy surprise card
-                this.handleInventoryWorthySurpriseCard(surpriseIndex, currentPlayer);
+                this.handleInventoryWorthySurpriseCard(surpriseIndex, currentPlayer, tilePosition);
             } else {
                 // Old format - backwards compatibility (shouldn't happen but just in case)
                 this.showCard('SURPRISE', null, messagePart);
@@ -3105,7 +3184,7 @@ class GameView {
         return false;
     }
 
-    handleInventoryWorthySurpriseCard(surpriseIndex, currentPlayer = null) {
+    handleInventoryWorthySurpriseCard(surpriseIndex, currentPlayer = null, tilePosition = null) {
         // Define inventory-worthy surprise cards (indices 0-39)
         // Five-Star Review (index 2) and Shoutout Stunner (index 32) give Get Out of Jail cards
         // Double-Down (index 25) gives Double Down item
@@ -3130,9 +3209,57 @@ class GameView {
             }
         };
 
+        // Define inventory-worthy Mystery Mash cards (indices 0-39)
+        const mysteryMashInventoryCards = {
+            1: { // Five-Star Review!
+                itemId: 'jail_free',
+                itemName: 'Get out of Jail Free Card',
+                icon: '🗝️',
+                message: 'Five-Star Review! You\'ve earned a Get out of Jail Card.'
+            },
+            10: { // Flash Response
+                itemId: 'time_travel',
+                itemName: 'Time Travel Card',
+                icon: '⏰',
+                message: 'Flash Response! You responded at super speed, you earn a Time Travel Card!'
+            },
+            12: { // Free BOGO
+                itemId: 'double_down',
+                itemName: 'Double Down',
+                icon: '⚡',
+                message: 'Free BOGO! You earned a Double Down card for free!'
+            },
+            35: { // Shoutout Stunner
+                itemId: 'jail_free',
+                itemName: 'Get out of Jail Free Card',
+                icon: '🗝️',
+                message: 'Shoutout Stunner! You have the best performing KPIs for the week! 🌟 You earn a Get Out of Jail Card.'
+            },
+            32: { // Money Bag
+                itemId: 'money_back',
+                itemName: 'Money Back Guarantee Card',
+                icon: '💰',
+                message: 'Money Bag! You got a QA Streak, you earn a Money Back Guarantee Card'
+            },
+            39: { // Flawless cart
+                itemId: 'money_back',
+                itemName: 'Money Back Guarantee Card',
+                icon: '💰',
+                message: 'Flawless cart! You created a cart like a personal shopper. You earn a Money Back Guarantee Card!'
+            }
+        };
+
         // Check if this is an inventory-worthy card
-        if (inventoryCards[surpriseIndex]) {
-            const cardInfo = inventoryCards[surpriseIndex];
+        let cardInfo = null;
+        
+        // Check if this is a Mystery Mash tile (positions 4, 10, 13, 23)
+        if (tilePosition && [4, 10, 13, 23].includes(tilePosition)) {
+            cardInfo = mysteryMashInventoryCards[surpriseIndex];
+        } else {
+            cardInfo = inventoryCards[surpriseIndex];
+        }
+        
+        if (cardInfo) {
             
             // Use the provided current player or fall back to game state detection
             let playerToReceive = currentPlayer;
@@ -3625,6 +3752,41 @@ class GameView {
             this.adminTestCard();
         });
 
+        // NEW: Flash Round controls
+        this.$adminStartFlashRoundButton = document.getElementById("admin-start-flash-round");
+        if (this.$adminStartFlashRoundButton) {
+            this.$adminStartFlashRoundButton.addEventListener("click", () => {
+                this.adminStartFlashRound();
+            });
+        }
+
+        // NEW: Mystery Mash controls
+        this.$adminShowMysteryMashButton = document.getElementById("admin-show-mystery-mash");
+        if (this.$adminShowMysteryMashButton) {
+            this.$adminShowMysteryMashButton.addEventListener("click", () => {
+                this.adminShowMysteryMash();
+            });
+        }
+
+        // NEW: Steal Card controls
+        this.$adminStealCardPlayer = document.getElementById("admin-steal-card-player");
+        this.$adminGiveStealCardButton = document.getElementById("admin-give-steal-card");
+        if (this.$adminGiveStealCardButton) {
+            this.$adminGiveStealCardButton.addEventListener("click", () => {
+                this.adminGiveStealCard();
+            });
+        }
+
+        // NEW: Maintenance Fee controls
+        this.$adminMaintenancePlayer = document.getElementById("admin-maintenance-player");
+        this.$adminMaintenanceTile = document.getElementById("admin-maintenance-tile");
+        this.$adminTriggerMaintenanceButton = document.getElementById("admin-trigger-maintenance");
+        if (this.$adminTriggerMaintenanceButton) {
+            this.$adminTriggerMaintenanceButton.addEventListener("click", () => {
+                this.adminTriggerMaintenance();
+            });
+        }
+
         // Enable/disable buttons based on selections
         const updateMoveButton = () => {
             const playerSelected = this.$adminPlayerSelect.value !== "";
@@ -4070,17 +4232,18 @@ class GameView {
         console.log(`⚡ Admin triggering tile action for ${teamName} on tile ${currentTile}`);
 
         // Define tile types and their actions
-        const questionTiles = [1, 4, 7, 8, 11, 14, 17, 19, 21, 22]; // Removed 20 (Training Time)
-        const surpriseTiles = [2, 10, 13, 23];
+        const questionTiles = [1, 8, 17, 22]; // Question tiles: Riddle me this, Riddleton Place, Problem Plaza, Coupon Court
+        const surpriseTiles = [4, 10, 13, 23]; // Mystery Mash tiles
+        const flashRoundTiles = [2, 11, 14, 19]; // Flash Round tiles
         
         // Get tile names for user feedback
         const tileNames = {
-            0: "Start", 1: "Empathy Lane", 2: "Surprise Card", 3: "Moonstar Response Station",
-            4: "Knowledge Knoll", 5: "Golden Chest", 6: "QA Jail", 7: "Escalation Ave",
-            8: "Riddleton Place", 9: "Starlight Response Station", 10: "Surprise Card", 11: "Sale-A-Vie Blvd",
-            12: "Best Agent", 13: "Surprise Card", 14: "Knowledge Square", 15: "Sunshine Response Station",
-            16: "Connectivity Cost Center", 17: "Problem Plaza", 18: "Go to QA Jail", 19: "Inquiry Inspections",
-            20: "Training Time", 21: "Coupon Court", 22: "Resolution Road", 23: "Surprise Card"
+            0: "Start", 1: "Riddle me this", 2: "Flash round", 3: "Moonstar Response Station",
+            4: "Mystery Mash", 5: "Golden Chest", 6: "QA Jail", 7: "Double or nothing",
+            8: "Riddleton Place", 9: "Starlight Response Station", 10: "Mystery Mash", 11: "Flash round",
+            12: "Best Agent", 13: "Mystery Mash", 14: "Flash round", 15: "Sunshine Response Station",
+            16: "Connectivity Cost Center", 17: "Problem Plaza", 18: "Go to QA Jail", 19: "Flash round",
+            20: "Training Time", 21: "Moonlight Response Station", 22: "Coupon Court", 23: "Mystery Mash"
         };
         
         const tileName = tileNames[currentTile] || `Tile ${currentTile}`;
@@ -4110,19 +4273,25 @@ class GameView {
                     alert(`No questions available for ${tileName}. Question pool may be exhausted.`);
                 }
             } else if (surpriseTiles.includes(currentTile)) {
-                // Trigger surprise card
-                const surpriseIndex = Math.floor(Math.random() * 40); // 40 total surprise cards
-                console.log(`⚡ Triggering surprise card for tile ${currentTile} (${tileName})`);
+                // Trigger Mystery Mash card
+                const mysteryMashIndex = Math.floor(Math.random() * 40); // 40 total mystery mash cards
+                console.log(`⚡ Triggering Mystery Mash card for tile ${currentTile} (${tileName})`);
                 
                 // Send admin test card command to all clients
                 this.socket.send(JSON.stringify({
                     action: "admin_test_card",
                     card_type: "SURPRISE",
                     tile_id: currentTile,
-                    surprise_index: surpriseIndex,
+                    surprise_index: mysteryMashIndex,
                     hostname: this.hostName
                 }));
-            } else if ([3, 9, 15].includes(currentTile)) {
+            } else if (flashRoundTiles.includes(currentTile)) {
+                // Trigger Flash Round
+                console.log(`⚡ Triggering Flash Round for tile ${currentTile} (${tileName})`);
+                
+                // Show Flash Round intro modal
+                this.showFlashRoundIntroModal(currentTile);
+            } else if ([3, 9, 15, 21].includes(currentTile)) {
                 // Response Stations - check ownership and show appropriate action
                 console.log(`⚡ Triggering ${tileName} action for tile ${currentTile}`);
                 
@@ -4132,7 +4301,7 @@ class GameView {
                     // Unowned station - show purchase option
                     // Calculate purchase price based on player's owned stations
                     let ownedStations = 0;
-                    for (let tileId of [3, 9, 15]) {
+                    for (let tileId of [3, 9, 15, 21]) {
                         if (this.landOwners[tileId] === playerIndex) {
                             ownedStations++;
                         }
@@ -4154,9 +4323,9 @@ class GameView {
                     
                 } else if (currentOwner === playerIndex) {
                     // Player owns this station - can use it for free (pay SB to get more SB)
-                    const stationCosts = { 3: 5, 9: 10, 15: 15 };
+                    const stationCosts = { 3: 5, 9: 7, 15: 10, 21: 13 };
                     const cost = stationCosts[currentTile];
-                    const stationRewards = { 3: 6, 9: 12, 15: 18 }; // Rewards match rent amounts
+                    const stationRewards = { 3: 6, 9: 8, 15: 10, 21: 13 }; // Rewards match rent amounts
                     const reward = stationRewards[currentTile];
                     
                     console.log(`${teamName} owns station ${currentTile}. Can use service: pay ${cost} SB → get ${reward} SB`);
@@ -4179,7 +4348,7 @@ class GameView {
                     
                     // Calculate rent based on how many stations the owner has
                     let ownerStations = 0;
-                    for (let tileId of [3, 9, 15]) {
+                    for (let tileId of [3, 9, 15, 21]) {
                         if (this.landOwners[tileId] === currentOwner) {
                             ownerStations++;
                         }
@@ -4187,9 +4356,10 @@ class GameView {
                     
                     // Rent increases with number of stations owned
                     let rent;
-                    if (ownerStations === 1) rent = 6;
-                    else if (ownerStations === 2) rent = 12; 
-                    else rent = 18; // All 3 stations
+                    if (ownerStations === 1) rent = 5;
+                    else if (ownerStations === 2) rent = 10; 
+                    else if (ownerStations === 3) rent = 15;
+                    else rent = 20; // All 4 stations
                     
                     console.log(`${teamName} must pay ${rent} SB rent to ${ownerName} for station ${currentTile}`);
                     
@@ -4255,6 +4425,97 @@ class GameView {
             this.$adminTileActionButton.textContent = "⚡ Trigger Tile Action";
             this.$adminTileActionButton.disabled = false;
         }, 500);
+    }
+
+    // NEW: Flash Round admin function
+    adminStartFlashRound() {
+        console.log(`⚡ Admin starting Flash Round`);
+
+        // Use tile 2 as the default Flash Round tile (any Flash Round tile would work the same)
+        const tilePosition = 2;
+        
+        // Show Flash Round intro modal
+        this.showFlashRoundIntroModal(tilePosition);
+    }
+
+    // NEW: Mystery Mash admin function
+    adminShowMysteryMash() {
+        console.log(`🎭 Admin showing Mystery Mash`);
+
+        // Use tile 4 as the default Mystery Mash tile (any Mystery Mash tile would work the same)
+        const tilePosition = 4;
+        
+        // Trigger the tile action for Mystery Mash tile to use server-side uniqueness system
+        this.socket.send(JSON.stringify({
+            action: "admin_tile_action",
+            hostname: this.hostName,
+            player_index: 0, // Use player 0 as default
+            tile_id: tilePosition
+        }));
+
+        // Show success message
+        this.showToastNotification(`🎭 Showing Mystery Mash card`);
+    }
+
+    // NEW: Steal Card admin function
+    adminGiveStealCard() {
+        const teamIndex = this.$adminStealCardPlayer.value;
+        if (!teamIndex || teamIndex === "") {
+            alert("Please select a team first.");
+            return;
+        }
+
+        console.log(`🦹 Admin giving Steal Card to team ${teamIndex}`);
+
+        // Add Steal Card to team's inventory
+        if (!this.teamInventories[teamIndex]) {
+            this.teamInventories[teamIndex] = [];
+        }
+
+        // Find if team already has a Steal Card
+        const existingStealCard = this.teamInventories[teamIndex].find(item => item.name === "Steal Card");
+        if (existingStealCard) {
+            existingStealCard.count++;
+        } else {
+            this.teamInventories[teamIndex].push({
+                name: "Steal Card",
+                count: 1,
+                cost: 8
+            });
+        }
+
+        // Update inventory display
+        this.updateInventoryDisplay();
+
+        // Show success message
+        this.showToastNotification(`🦹 Gave Steal Card to Team ${parseInt(teamIndex) + 1}`);
+    }
+
+    // NEW: Maintenance Fee admin function
+    adminTriggerMaintenance() {
+        const teamIndex = this.$adminMaintenancePlayer.value;
+        const tilePosition = this.$adminMaintenanceTile.value;
+        
+        if (!teamIndex || teamIndex === "" || !tilePosition || tilePosition === "") {
+            alert("Please select both a team and a question tile first.");
+            return;
+        }
+
+        console.log(`🔧 Admin triggering maintenance fee for team ${teamIndex} on tile ${tilePosition}`);
+
+        // Calculate owned stations for the team
+        let ownedStations = 0;
+        if (this.teamInventories[teamIndex]) {
+            // Count response stations (this is a simplified approach)
+            // In a real implementation, you'd check actual tile ownership
+            ownedStations = Math.floor(Math.random() * 5); // Random 0-4 for testing
+        }
+
+        // Show maintenance fee modal
+        this.showMaintenanceFeeModal(tilePosition, ownedStations);
+
+        // Show success message
+        this.showToastNotification(`🔧 Triggered maintenance fee for Team ${parseInt(teamIndex) + 1} (${ownedStations} stations)`);
     }
 
     /* ===== SUPPORT BUCKS SHOP SYSTEM ===== */
@@ -4359,6 +4620,13 @@ class GameView {
                 cost: 30,
                 description: 'One additional die roll. Must be used before rolling!',
                 icon: '🕐'
+            },
+            {
+                id: 'steal_card',
+                name: 'Steal Card',
+                cost: 8,
+                description: 'Land on question tile owned by opposing team. Answer correctly to steal the tile and earn 3 SB + 5 points. Answer wrong and pay normal rent.',
+                icon: '🦹'
             }
         ];
     }
@@ -4875,6 +5143,334 @@ class GameView {
         }, 2000);
     }
 
+    // Flash Round Functions
+    startFlashRound(tilePosition) {
+        console.log(`⚡ Starting Flash Round for tile ${tilePosition}`);
+        
+        // Get current player
+        const currentPlayer = this.getCurrentPlayerFromGameState();
+        
+        // Initialize flash round state
+        this.flashRound.active = true;
+        this.flashRound.currentTeam = currentPlayer;
+        this.flashRound.currentQuestionIndex = 0;
+        this.flashRound.score = 0;
+        this.flashRound.usedQuestions = {
+            unsubscribe: [],
+            close: []
+        };
+        
+        // Show first flash round card
+        this.showFlashRoundCard();
+        
+        // Show points tracker
+        this.showFlashRoundPointsTracker();
+    }
+
+    showFlashRoundCard() {
+        if (!this.flashRound.active) return;
+        
+        console.log(`⚡ Showing Flash Round card ${this.flashRound.currentQuestionIndex + 1}`);
+        
+        // Get random question (mix of unsubscribe and close)
+        const questionData = this.getRandomFlashRoundQuestion();
+        
+        if (!questionData) {
+            console.log('⚡ No more flash round questions available');
+            this.endFlashRound();
+            return;
+        }
+        
+        // Show the card with flash round images
+        this.showCard(
+            'FLASH_ROUND',
+            null, // No specific tile ID
+            'Flash Round Question',
+            this.flashRound.currentQuestionIndex,
+            null,
+            questionData.category
+        );
+        
+        // Start flash round timer and synchronize across all clients
+        if (this.userName === this.hostName) {
+            // Admin starts timer and broadcasts to all clients
+            this.socket.send(JSON.stringify({
+                action: "start_flash_round_timer",
+                hostname: this.hostName
+            }));
+        }
+        this.startFlashRoundTimer();
+    }
+
+    getRandomFlashRoundQuestion() {
+        // Get all available questions (unsubscribe and close only, no block)
+        const unsubscribeQuestions = this.getSuddenDeathUnsubscribeQuestions();
+        const closeQuestions = this.getSuddenDeathCloseQuestions();
+        
+        // Combine all questions into one array with category info
+        const allQuestions = [
+            ...unsubscribeQuestions.map((q, index) => ({ ...q, category: 'unsubscribe', originalIndex: index })),
+            ...closeQuestions.map((q, index) => ({ ...q, category: 'close', originalIndex: index }))
+        ];
+        
+        // Filter out used questions
+        const availableQuestions = allQuestions.filter(q => {
+            if (q.category === 'unsubscribe') {
+                return !this.flashRound.usedQuestions.unsubscribe.includes(q.originalIndex);
+            } else if (q.category === 'close') {
+                return !this.flashRound.usedQuestions.close.includes(q.originalIndex);
+            }
+            return false;
+        });
+        
+        if (availableQuestions.length === 0) {
+            return null; // No more questions
+        }
+        
+        // Pick random question
+        const randomQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
+        
+        // Mark as used
+        if (randomQuestion.category === 'unsubscribe') {
+            this.flashRound.usedQuestions.unsubscribe.push(randomQuestion.originalIndex);
+        } else if (randomQuestion.category === 'close') {
+            this.flashRound.usedQuestions.close.push(randomQuestion.originalIndex);
+        }
+        
+        return randomQuestion;
+    }
+
+    nextFlashRoundCard() {
+        if (!this.flashRound.active) return;
+        
+        this.flashRound.currentQuestionIndex++;
+        
+        // Stop current timer
+        this.stopFlashRoundTimer();
+        
+        // Show next card
+        this.showFlashRoundCard();
+        
+        // Update points tracker
+        this.showFlashRoundPointsTracker();
+    }
+
+    endFlashRound() {
+        console.log(`⚡ Ending Flash Round. Final score: ${this.flashRound.score}`);
+        
+        // Stop timer
+        this.stopFlashRoundTimer();
+        
+        // Hide points tracker
+        const pointsTracker = document.getElementById('flash-round-points-tracker');
+        if (pointsTracker) {
+            pointsTracker.remove();
+        }
+        
+        // Show final score
+        this.showFlashRoundFinalScore();
+        
+        // Reset flash round state
+        this.flashRound.active = false;
+        this.flashRound.currentTeam = null;
+        this.flashRound.currentQuestionIndex = 0;
+        this.flashRound.score = 0;
+        this.flashRound.usedQuestions = {
+            unsubscribe: [],
+            close: []
+        };
+    }
+
+    showFlashRoundFinalScore() {
+        const teamName = this.teamNames[this.flashRound.currentTeam] || `Team ${this.flashRound.currentTeam + 1}`;
+        
+        this.showModal(
+            null,
+            "⚡ Flash Round Complete!",
+            teamName,
+            `Final Score: ${this.flashRound.score} points!`,
+            [
+                {
+                    text: "🎉 Continue",
+                    action: () => {
+                        this.hideModal();
+                    }
+                }
+            ],
+            0
+        );
+    }
+
+    showFlashRoundPointsTracker() {
+        const teamName = this.teamNames[this.flashRound.currentTeam] || `Team ${this.flashRound.currentTeam + 1}`;
+        
+        // Create or update points tracker
+        let pointsTracker = document.getElementById('flash-round-points-tracker');
+        if (!pointsTracker) {
+            pointsTracker = document.createElement('div');
+            pointsTracker.id = 'flash-round-points-tracker';
+            pointsTracker.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                background: rgba(0,0,0,0.9);
+                color: white;
+                padding: 15px 20px;
+                border-radius: 12px;
+                font-family: 'Montserrat', sans-serif;
+                border: 2px solid #f59e0b;
+                box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
+                z-index: 10000;
+                min-width: 200px;
+            `;
+            document.body.appendChild(pointsTracker);
+        }
+        
+        // Check if current user is admin
+        const hostname = document.getElementById('hostname').value;
+        const username = document.getElementById('username').value;
+        const isAdmin = (username === hostname);
+        
+        pointsTracker.innerHTML = `
+            <div style="color: #f59e0b; font-weight: bold; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">
+                ⚡ Flash Round - ${teamName}
+            </div>
+            <div style="font-size: 24px; font-weight: bold; color: #00ff00; margin-bottom: 10px;">
+                Score: ${this.flashRound.score} points
+            </div>
+            ${isAdmin ? `
+            <div class="admin-controls" style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <button id="flash-round-add-point" style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer;">
+                    ➕ Add Point
+                </button>
+                <button id="flash-round-remove-point" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer;">
+                    ➖ Remove Point
+                </button>
+            </div>
+            <button id="flash-round-next-card-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%;">
+                ⚡ Next Card
+            </button>
+            ` : ''}
+        `;
+        
+        // Add event listeners for admin controls
+        if (isAdmin) {
+            const addPointBtn = document.getElementById('flash-round-add-point');
+            const removePointBtn = document.getElementById('flash-round-remove-point');
+            const nextCardBtn = document.getElementById('flash-round-next-card-btn');
+            
+            if (addPointBtn) {
+                addPointBtn.onclick = () => {
+                    this.flashRound.score++;
+                    this.showFlashRoundPointsTracker();
+                };
+            }
+            
+            if (removePointBtn) {
+                removePointBtn.onclick = () => {
+                    if (this.flashRound.score > 0) {
+                        this.flashRound.score--;
+                        this.showFlashRoundPointsTracker();
+                    }
+                };
+            }
+            
+            if (nextCardBtn) {
+                nextCardBtn.onclick = () => {
+                    this.nextFlashRoundCard();
+                };
+            }
+        }
+    }
+
+    // Flash Round Timer Functions
+    startFlashRoundTimer() {
+        this.flashRoundTimer.isRunning = true;
+        this.flashRoundTimer.timeLeft = 20; // 20 seconds
+        
+        // Clear any existing interval
+        if (this.flashRoundTimer.intervalId) {
+            clearInterval(this.flashRoundTimer.intervalId);
+        }
+        
+        this.flashRoundTimer.intervalId = setInterval(() => {
+            this.updateFlashRoundTimerDisplay();
+            
+            if (this.flashRoundTimer.timeLeft <= 0) {
+                this.handleFlashRoundTimerEnd();
+            } else {
+                this.flashRoundTimer.timeLeft--;
+            }
+        }, 1000);
+        
+        // Update display immediately
+        this.updateFlashRoundTimerDisplay();
+        
+        // Show timer
+        this.showFlashRoundTimer();
+    }
+
+    stopFlashRoundTimer() {
+        this.flashRoundTimer.isRunning = false;
+        
+        if (this.flashRoundTimer.intervalId) {
+            clearInterval(this.flashRoundTimer.intervalId);
+            this.flashRoundTimer.intervalId = null;
+        }
+        
+        // Hide timer
+        this.hideFlashRoundTimer();
+    }
+
+    updateFlashRoundTimerDisplay() {
+        const timerDisplay = document.getElementById("flash-round-timer-display");
+        if (!timerDisplay) return;
+        
+        const seconds = this.flashRoundTimer.timeLeft;
+        const formattedTime = `${seconds.toString().padStart(2, '0')}`;
+        
+        timerDisplay.textContent = formattedTime;
+        
+        // Change color when time is running low
+        if (this.flashRoundTimer.timeLeft <= 5) {
+            timerDisplay.style.color = "#ff0000"; // Red
+        } else if (this.flashRoundTimer.timeLeft <= 10) {
+            timerDisplay.style.color = "#ff8800"; // Orange
+        } else {
+            timerDisplay.style.color = "#00ff00"; // Green
+        }
+    }
+
+    handleFlashRoundTimerEnd() {
+        console.log("⚡ Flash Round timer ended");
+        
+        // Stop timer
+        this.stopFlashRoundTimer();
+        
+        // Show time's up message
+        this.showToastNotification("⚡ Time's up! Moving to next question...");
+        
+        // Move to next card after a short delay
+        setTimeout(() => {
+            this.nextFlashRoundCard();
+        }, 1500);
+    }
+
+    showFlashRoundTimer() {
+        const timerElement = document.getElementById("flash-round-timer");
+        if (timerElement) {
+            timerElement.classList.remove("hidden");
+            timerElement.style.zIndex = "10001"; // Higher than card overlay
+        }
+    }
+
+    hideFlashRoundTimer() {
+        const timerElement = document.getElementById("flash-round-timer");
+        if (timerElement) {
+            timerElement.classList.add("hidden");
+        }
+    }
+
     showSuddenDeathCard() {
         const suddenDeathData = this.getSuddenDeathData();
         
@@ -5214,21 +5810,46 @@ class GameView {
 
     // Question Card Timer Functions
     initQuestionCardTimerControls() {
+        // Only admin has timer controls
+        if (this.userName !== this.hostName) {
+            return;
+        }
+
         this.$startQuestionTimerBtn = document.getElementById("start-question-timer-btn");
+        this.$addTimeBtn = document.getElementById("add-time-btn");
+        this.$subtractTimeBtn = document.getElementById("subtract-time-btn");
         
         if (this.$startQuestionTimerBtn) {
             this.$startQuestionTimerBtn.addEventListener("click", () => {
                 this.startQuestionCardTimer();
             });
         }
+        
+        if (this.$addTimeBtn) {
+            this.$addTimeBtn.addEventListener("click", () => {
+                this.addTimeToQuestionTimer(10);
+            });
+        }
+        
+        if (this.$subtractTimeBtn) {
+            this.$subtractTimeBtn.addEventListener("click", () => {
+                this.addTimeToQuestionTimer(-10);
+            });
+        }
     }
 
-    showQuestionCardTimer() {
+    showQuestionCardTimer(tileId = null) {
         const timerElement = document.getElementById("question-card-timer");
         if (timerElement) {
             timerElement.classList.remove("hidden");
             // Make sure timer appears on top of the card overlay (which has z-index: 10000)
             timerElement.style.zIndex = "10001"; // Higher than card overlay (10000)
+            
+            // Set the timer duration based on the tile ID
+            if (tileId !== null) {
+                this.setQuestionCardTimerDuration(tileId);
+            }
+            
             this.resetQuestionCardTimerDisplay();
         }
     }
@@ -5241,7 +5862,12 @@ class GameView {
             
             // Reset the timer state completely
             this.questionCardTimer.isRunning = false;
-            this.questionCardTimer.timeLeft = 120;
+            // Reset to correct duration based on current tile
+            if (this.questionCardTimer.currentTileId === 1) {
+                this.questionCardTimer.timeLeft = 60; // 1 minute for Riddle me this
+            } else {
+                this.questionCardTimer.timeLeft = 90; // 1:30 for other tiles
+            }
             
             // Reset button text if admin
             const startBtn = document.getElementById("start-question-timer-btn");
@@ -5252,15 +5878,39 @@ class GameView {
         }
     }
 
+    setQuestionCardTimerDuration(tileId) {
+        // Set timer duration based on tile ID
+        if (tileId === 1) {
+            // Riddle me this - 1 minute
+            this.questionCardTimer.timeLeft = 60;
+            this.questionCardTimer.currentTileId = tileId;
+        } else {
+            // All other question tiles - 1:30
+            this.questionCardTimer.timeLeft = 90;
+            this.questionCardTimer.currentTileId = tileId;
+        }
+    }
+
     resetQuestionCardTimerDisplay() {
-        this.questionCardTimer.timeLeft = 120;
+        // Reset to default duration (1:30) unless it's Riddle me this
+        if (this.questionCardTimer.currentTileId === 1) {
+            this.questionCardTimer.timeLeft = 60; // 1 minute for Riddle me this
+        } else {
+            this.questionCardTimer.timeLeft = 90; // 1:30 for other tiles
+        }
+        
         this.questionCardTimer.isRunning = false;
         
         const timerDisplay = document.getElementById("question-timer-display");
         const startBtn = document.getElementById("start-question-timer-btn");
         
         if (timerDisplay) {
-            timerDisplay.textContent = "02:00";
+            // Display the correct time format
+            if (this.questionCardTimer.currentTileId === 1) {
+                timerDisplay.textContent = "01:00";
+            } else {
+                timerDisplay.textContent = "01:30";
+            }
             timerDisplay.classList.remove("timer-times-up");
             timerDisplay.style.color = "#00ff00";
         }
@@ -5289,7 +5939,7 @@ class GameView {
 
     startQuestionCardTimerCountdown() {
         this.questionCardTimer.isRunning = true;
-        this.questionCardTimer.timeLeft = 120;
+        // Don't reset timeLeft here - it should already be set by setQuestionCardTimerDuration
         
         const startBtn = document.getElementById("start-question-timer-btn");
         if (startBtn) {
@@ -5314,6 +5964,33 @@ class GameView {
         
         // Update display immediately
         this.updateQuestionCardTimerDisplay();
+    }
+
+    addTimeToQuestionTimer(seconds) {
+        // Only admin can modify timer
+        if (this.userName !== this.hostName) {
+            return;
+        }
+
+        // Don't allow negative time
+        if (this.questionCardTimer.timeLeft + seconds < 0) {
+            this.questionCardTimer.timeLeft = 0;
+        } else {
+            this.questionCardTimer.timeLeft += seconds;
+        }
+
+        // Update display immediately
+        this.updateQuestionCardTimerDisplay();
+
+        // Broadcast timer adjustment to all clients
+        this.socket.send(JSON.stringify({
+            action: "adjust_question_timer",
+            hostname: this.hostName,
+            seconds: seconds,
+            new_time: this.questionCardTimer.timeLeft
+        }));
+
+        console.log(`⏱️ Admin adjusted question timer by ${seconds} seconds. New time: ${this.questionCardTimer.timeLeft}`);
     }
 
     updateQuestionCardTimerDisplay() {
@@ -5615,6 +6292,68 @@ class GameView {
         console.log(`🎁 Added ${itemName} to ${this.teamNames[teamIndex]}'s inventory from surprise card ${surpriseIndex}`);
     }
 
+    handleStealCardUsed(message) {
+        console.log("🦹 Received steal card used broadcast:", message);
+        
+        const teamIndex = message.team_index;
+        const tileId = message.tile_id;
+        const questionIndex = message.question_index;
+        
+        // Show notification that steal card was used
+        this.showToastNotification(`${this.teamNames[teamIndex]} used a Steal Card on tile ${tileId}! 🦹`);
+        
+        // The actual steal logic will be handled by the admin when they answer the question
+        // This just confirms the card was used and removes the steal option overlay
+        const stealOption = document.querySelector('.steal-card-option');
+        if (stealOption) {
+            stealOption.remove();
+        }
+        
+        console.log(`🦹 Steal card used by ${this.teamNames[teamIndex]} on tile ${tileId}`);
+    }
+
+    handleAdjustQuestionTimer(message) {
+        console.log("⏱️ Received question timer adjustment broadcast:", message);
+        
+        const seconds = message.seconds;
+        const newTime = message.new_time;
+        
+        // Update the timer state
+        this.questionCardTimer.timeLeft = newTime;
+        
+        // Update the display
+        this.updateQuestionCardTimerDisplay();
+        
+        // Show notification for admin adjustments
+        if (this.userName === this.hostName) {
+            const action = seconds > 0 ? "added" : "subtracted";
+            this.showToastNotification(`⏱️ Timer ${action} ${Math.abs(seconds)} seconds`);
+        }
+        
+        console.log(`⏱️ Question timer adjusted by ${seconds} seconds. New time: ${newTime}`);
+    }
+
+    handleTileAction(message) {
+        const tileId = message.tile_id;
+        const playerIndex = message.player_index;
+        const messageText = message.message;
+        
+        console.log(`🎯 Admin tile action: tile ${tileId}, player ${playerIndex}, message: ${messageText}`);
+        
+        // Process the tile action message using the existing detectAndShowCard function
+        this.detectAndShowCard(messageText, playerIndex);
+        
+        // Show notification
+        this.showToastNotification(`🎯 Admin triggered tile action on tile ${tileId}`);
+    }
+
+    handleStartFlashRoundTimer(message) {
+        console.log("⚡ Received flash round timer start broadcast");
+        
+        // Start synchronized timer on all clients
+        this.startFlashRoundTimer();
+    }
+
     // async handleGameEnd() {
     //     await this.showModal(null, "Game Terminated by Host", "", "Navigating back...", [], 5);
     //     window.location = `http://${window.location.host}/monopoly/join`;
@@ -5633,6 +6372,47 @@ class GameView {
         } while (this.adminUsedSurpriseIndices.includes(index));
         this.adminUsedSurpriseIndices.push(index);
         return index;
+    }
+
+    initAdminQuickButtons() {
+        console.log('⚡ Initializing Admin Quick Buttons...');
+        
+        // Initialize Passing Start button
+        this.$passingStartBtn = document.getElementById('passing-start-btn');
+        if (this.$passingStartBtn) {
+            this.$passingStartBtn.addEventListener('click', () => {
+                console.log('🏁 Passing Start button clicked!');
+                if (this.isAdmin) {
+                    this.adminPassingStart();
+                } else {
+                    console.log('🏁 Not admin, click ignored');
+                }
+            });
+        } else {
+            console.error('🏁 Passing Start button not found!');
+        }
+        
+        console.log('⚡ Admin Quick Buttons initialization complete');
+    }
+    
+    adminPassingStart() {
+        console.log('🏁 Admin Passing Start action triggered');
+        
+        // Get current player from game state
+        const currentPlayer = this.getCurrentPlayerFromGameState();
+        if (currentPlayer === null) {
+            console.error('🏁 Could not determine current player');
+            return;
+        }
+        
+        // Send admin passing start action to server
+        this.socket.send(JSON.stringify({
+            action: "admin_passing_start",
+            hostname: this.hostName,
+            player_index: currentPlayer
+        }));
+        
+        console.log(`🏁 Sent admin passing start for player ${currentPlayer}`);
     }
 }
 

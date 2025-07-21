@@ -163,10 +163,12 @@ def handle_roll(hostname, games, changehandlers):
     
     curr_player = game.get_current_player().get_index()
     new_pos = game.get_current_player().get_position()
+    # New: track whether points changed for correct answers/sudden-death etc.
     is_option = "false"
     is_cash_change = "false"
     new_event = "true"
     curr_cash = []
+    curr_points = []
     next_player = None
     bypass_start = None
 
@@ -183,6 +185,7 @@ def handle_roll(hostname, games, changehandlers):
         is_cash_change = "true"
         for player in players:
             curr_cash.append(player.get_money())
+            curr_points.append(player.get_points())
     elif move_result.move_result_type == MoveResultType.NOTHING:
         game.make_decision(move_result)
         next_player = game.get_current_player().get_index()
@@ -204,16 +207,24 @@ def handle_roll(hostname, games, changehandlers):
     title = title_type.get_description(move_result.move_result_type)
     landname = move_result.get_land().get_description()
 
-    if change_handler.bypass_start():
-        bypass_start = "true"
-        change_handler.set_bypass_start()
-        curr_cash = []
+    # Removed automatic bypass_start logic - now handled by admin buttons only
+    # if change_handler.bypass_start():
+    #     bypass_start = "true"
+    #     change_handler.set_bypass_start()
+    #     curr_cash = []
+    #     for player in players:
+    #         curr_cash.append(player.get_money())
+    #         curr_points.append(player.get_points())
+
+    # Always include latest points snapshot
+    if not curr_points:
+        # Populate even if no cash change happened
         for player in players:
-            curr_cash.append(player.get_money())
+            curr_points.append(player.get_points())
 
     Group(hostname).send({
         "text": build_roll_res_msg(curr_player, steps, move_result.beautify(), is_option, is_cash_change,
-                                   new_event, new_pos, curr_cash, next_player, title, landname, bypass_start,
+                                   new_event, new_pos, curr_cash, curr_points, next_player, title, landname, bypass_start,
                                    move_result.go_to_jail)
     })
 
@@ -631,7 +642,7 @@ def build_add_err_msg():
 
 
 def build_roll_res_msg(curr_player, steps, result, is_option, is_cash_change, new_event,
-                       new_pos, curr_cash, next_player, title, landname, bypass_start, go_to_jail=False):
+                       new_pos, curr_cash, curr_points, next_player, title, landname, bypass_start, go_to_jail=False):
     ret = {"action": "roll_res",
            "curr_player": curr_player,
            "steps": steps,
@@ -641,6 +652,7 @@ def build_roll_res_msg(curr_player, steps, result, is_option, is_cash_change, ne
            "new_event": new_event,
            "new_pos": new_pos,
            "curr_cash": curr_cash,
+           "curr_points": curr_points, # Added curr_points to the message
            "next_player": next_player,
            "title": title,
            "landname": landname,
@@ -791,6 +803,62 @@ def build_admin_reset_game_msg(players, cash_change, pos_change, points_change):
            "changeCash": cash_change,
            "posChange": pos_change,
            "changePoints": points_change,
+    }
+    print(json.dumps(ret))
+    return json.dumps(ret)
+
+
+def handle_admin_passing_start(hostname, games, player_index):
+    """Handle admin passing start - give 10 SB to selected player"""
+    print(f"🏁 Admin passing start requested: hostname={hostname}, player={player_index}")
+    
+    if hostname not in games:
+        print(f"❌ No game found for hostname: {hostname}")
+        return
+    
+    game = games[hostname]
+    players = game.get_players()
+    
+    # Validate player index
+    if player_index < 0 or player_index >= len(players):
+        print(f"❌ Invalid player index: {player_index}, available players: {len(players)}")
+        return
+    
+    # Get the player and add 10 SB
+    player = players[player_index]
+    current_money = player.get_money()
+    new_money = current_money + 10
+    
+    print(f"🏁 Player {player_index} money: {current_money} + 10 = {new_money}")
+    
+    player.set_money(new_money)
+    
+    print(f"✅ Added 10 SB to player {player_index} (from {current_money} to {new_money})")
+    
+    # Get current cash for all players
+    curr_cash = []
+    for p in players:
+        curr_cash.append(p.get_money())
+    
+    print(f"💰 Final cash amounts: {curr_cash}")
+    
+    print(f"✅ Admin passing start successful, broadcasting to clients")
+    
+    # Broadcast the admin passing start to all clients
+    Group(hostname).send({
+        "text": build_admin_passing_start_msg(player_index, curr_cash)
+    })
+
+
+def build_admin_passing_start_msg(player_index, curr_cash):
+    """Build message for admin passing start action"""
+    team_name = f"Team {player_index + 1}"
+    notification_msg = f"🏁 {team_name} gained 10 SB for passing start"
+    
+    ret = {"action": "admin_passing_start",
+           "player_index": player_index,
+           "curr_cash": curr_cash,
+           "notification_message": notification_msg,
     }
     print(json.dumps(ret))
     return json.dumps(ret)

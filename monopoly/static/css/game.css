@@ -651,6 +651,11 @@
     z-index: 10;
     pointer-events: none;
     backface-visibility: hidden;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Front side text (questions) */
@@ -1687,5 +1692,51 @@
 #sudden-death-category-btn:hover {
     background: #1769aa;
     box-shadow: 0 4px 16px rgba(33,150,243,0.18);
+}
+
+/* Make the Jaanuu scrubs answer card text smaller */
+.jaanuu-scrubs-answer {
+    font-size: 16px !important;
+}
+
+/* Make long answer card text smaller */
+.long-answer-card {
+    font-size: 16px !important;
+}
+
+/* Admin Quick Action Buttons */
+.admin-quick-btn {
+    position: fixed;
+    bottom: 20px;
+    left: 200px; /* Position next to shop button */
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(248, 249, 250, 0.5) 100%);
+    backdrop-filter: blur(10px);
+    color: #1f2937;
+    border: 2px solid rgba(229, 231, 235, 0.8);
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    z-index: 9999;
+    animation: adminButtonGlow 2s ease-in-out infinite alternate;
+}
+
+.admin-quick-btn:hover {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    border-color: #d1d5db;
+}
+
+.admin-quick-btn:active {
+    transform: translateY(0);
+}
+
+@keyframes adminButtonGlow {
+    0% { box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); }
+    100% { box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); }
 }
 

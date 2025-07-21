@@ -15,7 +15,7 @@ class Player(object):
         self._position = 0
         self._remaining_stop = 0
         self._properties = set()
-        self._points = 0
+        self._points = 10
 
 
     def get_position(self):

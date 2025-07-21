@@ -124,6 +124,9 @@ def ws_message(message):
         player_index = msg.get("player_index")
         amount = msg.get("amount")
         handle_admin_rent_money(hostname, games, player_index, amount)
+    if action == "admin_passing_start":
+        player_index = msg.get("player_index")
+        handle_admin_passing_start(hostname, games, player_index)
     if action == "admin_reset_game":
         handle_admin_reset_game(hostname, games, rooms)
     if action == "admin_test_card":
@@ -145,6 +148,12 @@ def ws_message(message):
         tile_index = msg.get("tile_index")
         owner_index = msg.get("owner_index")
         handle_admin_set_ownership(hostname, games, tile_index, owner_index)
+    if action == "admin_tile_action":
+        player_index = msg.get("player_index")
+        tile_id = msg.get("tile_id")
+        handle_admin_tile_action(hostname, games, player_index, tile_id)
+    if action == "start_flash_round_timer":
+        handle_start_flash_round_timer(hostname)
     if action == "dice_animation_start":
         handle_dice_animation_start(hostname)
     if action == "card_flipped":
@@ -222,6 +231,15 @@ def ws_message(message):
         category = msg.get("category")
         team_index = msg.get("team_index")
         handle_start_sudden_death_blitz(hostname, category, team_index)
+    if action == "steal_card_used":
+        team_index = msg.get("team_index")
+        tile_id = msg.get("tile_id")
+        question_index = msg.get("question_index")
+        handle_steal_card_used(hostname, team_index, tile_id, question_index)
+    if action == "adjust_question_timer":
+        seconds = msg.get("seconds")
+        new_time = msg.get("new_time")
+        handle_adjust_question_timer(hostname, seconds, new_time)
 
 
 # @login_required
@@ -416,17 +434,10 @@ def handle_admin_set_ownership(hostname, games, tile_index, owner_index):
     
     # Map tile indices to names
     tile_names = {
-        1: "Empathy Lane",
-        4: "Knowledge Knoll", 
-        7: "Escalation Ave",
+        1: "Riddle me this",
         8: "Riddleton Place",
-        11: "Sale-A-Vie Blvd",
-        14: "Knowledge Square",
         17: "Problem Plaza",
-        19: "Inquiry Inspections",
-        20: "Training Time",
-        21: "Coupon Court",
-        22: "Resolution Road"
+        22: "Coupon Court"
     }
     
     tile_name = tile_names.get(tile_index, f"Tile {tile_index}")
@@ -452,6 +463,58 @@ def handle_admin_set_ownership(hostname, games, tile_index, owner_index):
     })
     
     print(f"Ownership change sent to room {hostname}: {notification_message}")
+
+
+def handle_admin_tile_action(hostname, games, player_index, tile_id):
+    """Handle admin tile action - triggers the actual game logic for tile effects"""
+    print(f"Admin triggering tile action for player {player_index} on tile {tile_id} in room {hostname}")
+    
+    if hostname not in games:
+        print(f"No game found for hostname {hostname}")
+        return
+    
+    game = games[hostname]
+    
+    # Get the land at the specified tile
+    land = game.get_land(tile_id)
+    if not land:
+        print(f"No land found at tile {tile_id}")
+        return
+    
+    # Get the move result for this tile (this will use the server-side uniqueness system)
+    move_result = game._get_move_result(land)
+    if not move_result:
+        print(f"No move result for tile {tile_id}")
+        return
+    
+    # Extract the message from the move result
+    message_text = move_result.get_msg()
+    if not message_text:
+        print(f"No message in move result for tile {tile_id}")
+        return
+    
+    # Send the tile action message to all clients
+    Group(hostname).send({
+        "text": json.dumps({
+            "action": "tile_action",
+            "message": message_text,
+            "tile_id": tile_id,
+            "player_index": player_index
+        })
+    })
+    
+    print(f"Tile action sent to room {hostname}: {message_text}")
+
+
+def handle_start_flash_round_timer(hostname):
+    """Handle flash round timer start - broadcast to all clients for synchronization"""
+    print(f"Flash round timer started in room {hostname}")
+    
+    Group(hostname).send({
+        "text": json.dumps({
+            "action": "start_flash_round_timer"
+        })
+    })
 
 
 
@@ -731,5 +794,34 @@ def handle_sudden_death_show_category_menu(hostname):
     Group(hostname).send({
         "text": json.dumps({
             "action": "show_sudden_death_category_selection"
+        })
+    })
+
+
+def handle_steal_card_used(hostname, team_index, tile_id, question_index):
+    """Handle steal card usage and broadcast to all clients."""
+    print(f"🦹 Steal card used in room {hostname}: team {team_index} on tile {tile_id}")
+    
+    Group(hostname).send({
+        "text": json.dumps({
+            "action": "steal_card_used",
+            "hostname": hostname,
+            "team_index": team_index,
+            "tile_id": tile_id,
+            "question_index": question_index
+        })
+    })
+
+
+def handle_adjust_question_timer(hostname, seconds, new_time):
+    """Handle question timer adjustment and broadcast to all clients."""
+    print(f"⏱️ Question timer adjusted in room {hostname}: {seconds} seconds, new time: {new_time}")
+    
+    Group(hostname).send({
+        "text": json.dumps({
+            "action": "adjust_question_timer",
+            "hostname": hostname,
+            "seconds": seconds,
+            "new_time": new_time
         })
     })

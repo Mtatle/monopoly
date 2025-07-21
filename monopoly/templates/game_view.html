@@ -37,6 +37,13 @@
         🛒 Support Bucks Shop
     </button>
     
+    <!-- Admin Quick Action Buttons (admin only) -->
+    {% if username == hostname %}
+    <button id="passing-start-btn" class="admin-quick-btn" title="Give 10 SB to selected team for passing Start">
+        🏁 Passing Start
+    </button>
+    {% endif %}
+    
     <div id="controls-container">
         {% if username == hostname %}
         <a id="admin-panel-toggle" title="Admin Controls">
@@ -130,12 +137,26 @@
     <!-- Question Card Timer (Next to Card) -->
     <div id="question-card-timer" class="hidden" style="position: fixed; top: 50%; right: 20px; transform: translateY(-50%); z-index: 9999; background: rgba(0,0,0,0.9); color: white; padding: 15px 20px; border-radius: 12px; font-family: 'Courier New', monospace; border: 2px solid #3b82f6; box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4); display: flex; flex-direction: column; align-items: center; gap: 10px;">
                         <div style="color: #3b82f6; font-weight: bold; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Timer</div>
-        <div id="question-timer-display" style="font-size: 36px; font-weight: bold; color: #00ff00; text-shadow: 0 0 10px rgba(0, 255, 0, 0.5); min-width: 120px; text-align: center;">02:00</div>
+        <div id="question-timer-display" style="font-size: 36px; font-weight: bold; color: #00ff00; text-shadow: 0 0 10px rgba(0, 255, 0, 0.5); min-width: 120px; text-align: center;">01:30</div>
         {% if username == hostname %}
         <button id="start-question-timer-btn" class="timer-control-btn" style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3); transition: all 0.2s ease;">
             ▶️ Start Timer
         </button>
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <button id="add-time-btn" class="timer-control-btn" style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; padding: 6px 12px; border-radius: 16px; font-size: 11px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3); transition: all 0.2s ease;">
+                ➕ +10s
+            </button>
+            <button id="subtract-time-btn" class="timer-control-btn" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; padding: 6px 12px; border-radius: 16px; font-size: 11px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3); transition: all 0.2s ease;">
+                ➖ -10s
+            </button>
+        </div>
         {% endif %}
+    </div>
+
+    <!-- Flash Round Timer (Next to Card) -->
+    <div id="flash-round-timer" class="hidden" style="position: fixed; top: 50%; right: 20px; transform: translateY(-50%); z-index: 9999; background: rgba(0,0,0,0.9); color: white; padding: 15px 20px; border-radius: 12px; font-family: 'Courier New', monospace; border: 2px solid #f59e0b; box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4); display: flex; flex-direction: column; align-items: center; gap: 10px;">
+        <div style="color: #f59e0b; font-weight: bold; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">⚡ Flash Round</div>
+        <div id="flash-round-timer-display" style="font-size: 36px; font-weight: bold; color: #00ff00; text-shadow: 0 0 10px rgba(0, 255, 0, 0.5); min-width: 120px; text-align: center;">20</div>
     </div>
 
     <!-- Admin Panel -->
@@ -160,29 +181,29 @@
                     <select id="admin-tile-select">
                         <option value="">Select Tile...</option>
                         <option value="0">0 - Start</option>
-                        <option value="1">1 - Empathy Lane</option>
-                        <option value="2">2 - Surprise Card</option>
+                        <option value="1">1 - Riddle me this</option>
+                        <option value="2">2 - Flash round</option>
                         <option value="3">3 - Moonstar Response Station</option>
-                        <option value="4">4 - Knowledge Knoll</option>
+                        <option value="4">4 - Mystery Mash</option>
                         <option value="5">5 - Golden Chest</option>
                         <option value="6">6 - QA Jail</option>
-                        <option value="7">7 - Escalation Ave</option>
+                        <option value="7">7 - Double or nothing</option>
                         <option value="8">8 - Riddleton Place</option>
                         <option value="9">9 - Starlight Response Station</option>
-                        <option value="10">10 - Surprise Card</option>
-                        <option value="11">11 - Sale-A-Vie Blvd</option>
+                        <option value="10">10 - Mystery Mash</option>
+                        <option value="11">11 - Flash round</option>
                         <option value="12">12 - Best Agent</option>
-                        <option value="13">13 - Surprise Card</option>
-                        <option value="14">14 - Knowledge Square</option>
+                        <option value="13">13 - Mystery Mash</option>
+                        <option value="14">14 - Flash round</option>
                         <option value="15">15 - Sunshine Response Station</option>
                         <option value="16">16 - Connectivity Cost Center</option>
                         <option value="17">17 - Problem Plaza</option>
                         <option value="18">18 - Go to QA Jail</option>
-                        <option value="19">19 - Inquiry Inspections</option>
+                        <option value="19">19 - Flash round</option>
                         <option value="20">20 - Training Time</option>
-                        <option value="21">21 - Coupon Court</option>
-                        <option value="22">22 - Resolution Road</option>
-                        <option value="23">23 - Surprise Card</option>
+                        <option value="21">21 - Moonlight Response Station</option>
+                        <option value="22">22 - Coupon Court</option>
+                        <option value="23">23 - Mystery Mash</option>
                     </select>
                 </div>
                 <button id="admin-move-player" class="admin-action-btn">
@@ -262,20 +283,14 @@
                     <label for="admin-ownership-tile">Tile:</label>
                     <select id="admin-ownership-tile">
                         <option value="">Select Tile...</option>
-                        <option value="1">1 - Empathy Lane</option>
+                        <option value="1">1 - Riddle me this</option>
                         <option value="3">3 - Moonstar Response Station</option>
-                        <option value="4">4 - Knowledge Knoll</option>
-                        <option value="7">7 - Escalation Ave</option>
                         <option value="8">8 - Riddleton Place</option>
                         <option value="9">9 - Starlight Response Station</option>
-                        <option value="11">11 - Sale-A-Vie Blvd</option>
-                        <option value="14">14 - Knowledge Square</option>
                         <option value="15">15 - Sunshine Response Station</option>
                         <option value="17">17 - Problem Plaza</option>
-                        <option value="19">19 - Inquiry Inspections</option>
-                        <option value="20">20 - Training Time</option>
-                        <option value="21">21 - Coupon Court</option>
-                        <option value="22">22 - Resolution Road</option>
+                        <option value="21">21 - Moonlight Response Station</option>
+                        <option value="22">22 - Coupon Court</option>
                     </select>
                 </div>
                 <div class="admin-control-group">
@@ -309,6 +324,28 @@
                 </div>
             </div>
 
+            <!-- NEW: Flash Round Controls -->
+            <div class="admin-section" style="border: 2px dashed #f59e0b; background: rgba(245, 158, 11, 0.07);">
+                <h4>⚡ Flash Round Controls</h4>
+                <button id="admin-start-flash-round" class="admin-action-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                    ⚡ Start Flash Round
+                </button>
+                <div style="font-size: 12px; color: #666; margin-top: 8px; text-align: center;">
+                    Starts a 20-second flash round with random questions
+                </div>
+            </div>
+
+            <!-- NEW: Mystery Mash Controls -->
+            <div class="admin-section" style="border: 2px dashed #8b5cf6; background: rgba(139, 92, 246, 0.07);">
+                <h4>🎭 Mystery Mash Controls</h4>
+                <button id="admin-show-mystery-mash" class="admin-action-btn" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                    🎭 Show Mystery Mash
+                </button>
+                <div style="font-size: 12px; color: #666; margin-top: 8px; text-align: center;">
+                    Shows a random Mystery Mash card
+                </div>
+            </div>
+
             <!-- NEW: Special Surprise Card Controls -->
             <div class="admin-section" style="border: 2px dashed #3b82f6; background: rgba(59, 130, 246, 0.07);">
                 <h4>🎲 Special Surprise Card Controls</h4>
@@ -333,29 +370,75 @@
                 </button>
             </div>
 
-            <!-- 🧪 TEMPORARY CARD TESTER -->
+            <!-- NEW: Steal Card Controls -->
+            <div class="admin-section" style="border: 2px dashed #ef4444; background: rgba(239, 68, 68, 0.07);">
+                <h4>🦹 Steal Card Controls</h4>
+                <div class="admin-control-group">
+                    <label for="admin-steal-card-player">Give Steal Card to Team:</label>
+                    <select id="admin-steal-card-player">
+                        <option value="0">Team 1</option>
+                        <option value="1">Team 2</option>
+                    </select>
+                </div>
+                <button id="admin-give-steal-card" class="admin-action-btn" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+                    🦹 Give Steal Card
+                </button>
+                <div style="font-size: 12px; color: #666; margin-top: 8px; text-align: center;">
+                    Gives a Steal Card (8 SB value) to the selected team
+                </div>
+            </div>
+
+            <!-- NEW: Maintenance Fee Controls -->
+            <div class="admin-section" style="border: 2px dashed #10b981; background: rgba(16, 185, 129, 0.07);">
+                <h4>🔧 Maintenance Fee Controls</h4>
+                <div class="admin-control-group">
+                    <label for="admin-maintenance-player">Trigger Maintenance Fee for Team:</label>
+                    <select id="admin-maintenance-player">
+                        <option value="">Select Team...</option>
+                        <option value="0">Team 1</option>
+                        <option value="1">Team 2</option>
+                    </select>
+                </div>
+                <div class="admin-control-group">
+                    <label for="admin-maintenance-tile">On Question Tile:</label>
+                    <select id="admin-maintenance-tile">
+                        <option value="">Select Tile...</option>
+                        <option value="1">1 - Riddle me this</option>
+                        <option value="8">8 - Riddleton Place</option>
+                        <option value="17">17 - Problem Plaza</option>
+                        <option value="22">22 - Coupon Court</option>
+                    </select>
+                </div>
+                <button id="admin-trigger-maintenance" class="admin-action-btn" style="background: linear-gradient(135deg, #10b981, #059669);">
+                    🔧 Trigger Maintenance Fee
+                </button>
+                <div style="font-size: 12px; color: #666; margin-top: 8px; text-align: center;">
+                    Shows maintenance fee modal based on owned response stations
+                </div>
+            </div>
+
+            <!-- 🧪 CARD TESTER (Updated) -->
             <div class="admin-section" style="border: 2px dashed #FF6B35; background: rgba(255, 107, 53, 0.1);">
-                <h4>🧪 Card Tester (Temporary)</h4>
+                <h4>🧪 Card Tester</h4>
                 <div class="admin-control-group">
                     <label for="admin-test-tile">Test Tile Card:</label>
                     <select id="admin-test-tile">
                         <option value="">Select Tile to Test...</option>
-                        <option value="1">1 - Empathy Lane (Question)</option>
-                        <option value="2">Surprise Card</option>
-                        <option value="4">4 - Knowledge Knoll (Question)</option>
-                        <option value="7">7 - Escalation Ave (Question)</option>
+                        <option value="1">1 - Riddle me this (Question)</option>
+                        <option value="2">2 - Flash round</option>
+                        <option value="4">4 - Mystery Mash</option>
+                        <option value="7">7 - Double or nothing</option>
                         <option value="8">8 - Riddleton Place (Question)</option>
-                        <option value="11">11 - Sale-A-Vie Blvd (Question)</option>
-                        <option value="14">14 - Knowledge Square (Question)</option>
                         <option value="17">17 - Problem Plaza (Question)</option>
-                        <option value="19">19 - Inquiry Inspections (Question)</option>
-                        <option value="21">21 - Coupon Court (Question)</option>
-                        <option value="22">22 - Resolution Road (Question)</option>
+                        <option value="22">22 - Coupon Court (Question)</option>
                     </select>
                 </div>
                 <button id="admin-test-card" class="admin-action-btn" style="background: linear-gradient(135deg, #FF6B35, #F7931E);">
                     🃏 Show Test Card
                 </button>
+                <div style="font-size: 12px; color: #666; margin-top: 8px; text-align: center;">
+                    Test any tile's card functionality
+                </div>
             </div>
         </div>
     </div>

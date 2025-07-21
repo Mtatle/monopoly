@@ -6,5 +6,5 @@ class ModalTitleType():
                "Get Reward",
                "Stop One Round",
                "Build a House",
-               "Nothing actually happened"]
+               "Tile Event"]
         return ret[val]

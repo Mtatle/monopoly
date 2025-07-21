@@ -268,7 +268,7 @@ class ResponseStationLand(object):
 
 
 class GoldenChestLand(object):
-    """Golden Chest - earn 15 SB"""
+    """Golden Chest - earn 10 SB"""
     def get_type(self):
         return LandType.GOLDEN_CHEST
 
@@ -276,11 +276,11 @@ class GoldenChestLand(object):
         return None
 
     def get_reward(self):
-        return 15
+        return 10
 
 
 class BestAgentLand(object):
-    """Best Agent - get 10 points"""
+    """Best Agent - get 5 points"""
     def get_type(self):
         return LandType.BEST_AGENT
 
@@ -288,11 +288,11 @@ class BestAgentLand(object):
         return None
 
     def get_points_reward(self):
-        return 10
+        return 5
 
 
 class ConnectivityCostLand(object):
-    """Connectivity Cost Center - pay 10 SB"""
+    """Connectivity Cost Center - pay 5 SB"""
     def get_type(self):
         return LandType.CONNECTIVITY_COST
 
@@ -300,7 +300,7 @@ class ConnectivityCostLand(object):
         return None
 
     def get_cost(self):
-        return 10
+        return 5
 
 
 class GoToJailLand(object):
@@ -321,6 +321,24 @@ class TrainingTimeLand(object):
         return None
 
 
+class FlashRoundLand(object):
+    """Flash Round - new tile type for future implementation"""
+    def get_type(self):
+        return LandType.FLASH_ROUND
+
+    def get_owner_index(self):
+        return None
+
+
+class DoubleOrNothingLand(object):
+    """Double or Nothing - new tile type for future implementation"""
+    def get_type(self):
+        return LandType.DOUBLE_OR_NOTHING
+
+    def get_owner_index(self):
+        return None
+
+
 class LandType(object):
     CONSTRUCTION_LAND = 0
     INFRA = 1
@@ -336,6 +354,8 @@ class LandType(object):
     CONNECTIVITY_COST = 11
     GO_TO_JAIL = 12
     TRAINING_TIME = 13
+    FLASH_ROUND = 14
+    DOUBLE_OR_NOTHING = 15
 
     @staticmethod
     def get_description(val):
@@ -352,5 +372,7 @@ class LandType(object):
                "Best Agent",
                "Connectivity Cost Center",
                "Go to QA Jail",
-               "Training Time"]
+               "Training Time",
+               "Flash Round",
+               "Double or Nothing"]
         return ret[val]
